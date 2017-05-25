@@ -6,15 +6,32 @@ from PIL import Image
 import time
 from collections import namedtuple
 import numpy
+import math
 
 URL = "***REMOVED***"
 DIR = "images"
 NNOV = (612,448)
-TEST = (414, 317)
+#TEST = (420, 317)
+#TEST = (365, 306)
+#TEST = (240, 559)
+#TEST = (569, 444)
+#TEST = (625, 381)
+TEST = NNOV
 
+TYPE_HAIL = 3
 TYPE_STORM = 2
 TYPE_RAIN = 1
 TYPE_NONE = 0
+
+PERIOD = 10  # minutes
+
+RADIUS = 96  # pixels
+DIRECTIONS = 96  # better to be multiple of 8
+
+FRAMES_OFFSET = 6  # how many cloned frames at gif end
+FRAMES_CONSIDER = 9
+
+MAX_TIME = 100*PERIOD
 
 Range = namedtuple('Range', 'start end')
 Status = namedtuple('Status', 'start end type')
@@ -30,12 +47,16 @@ def download():
     return fname
 
 
-def merge(range1, range2):
-    if not range1:
-        return range2
-    if not range2:
-        return range1
-    return Range(min(range1.start, range1.end), max(range2.start, range2.end))
+def load_image(fname):
+    im = Image.open(fname)
+    res = []
+    while True:
+        res.append(numpy.array(im.convert("RGB")))
+        try:
+            im.seek(im.tell() + 1)
+        except EOFError:
+            break
+    return res
 
 
 def is_rain_color(color):
@@ -45,8 +66,12 @@ def is_rain_color(color):
 
 def is_storm_color(color):
     r, g, b = color
-    return ((r > 1.3*g and r > 2*b) # reds
-        or (g > 2*r and g > 2*b) # greens
+    return (r > 1.3*g and r > 2*b)
+
+
+def is_hail_color(color):
+    r, g, b = color
+    return ((g > 2*r and g > 2*b) # greens
         or (r > 3*g and b > 3*g and r > 0.5*b and b > 0.5*r)) # violets
         
         
@@ -66,6 +91,118 @@ def is_fixed_point(im, x, y):
     return True
 
 
+def solve_reg(xs, ys):
+    if len(xs) <= 2:
+        return None
+    xs = numpy.array(xs)
+    ys = numpy.array(ys)
+    if all(ys == ys[0]):
+        return None
+    r = numpy.corrcoef(xs, ys)[0][1]
+    print("xs=",xs, "ys=",ys)
+    print("r=",r)
+    if r > -0.7:
+        return None
+    A = numpy.vstack([xs, numpy.ones(len(xs))]).T
+    k, b = numpy.linalg.lstsq(A, ys)[0]
+    print("kb=", k, b)
+    if abs(k) < 1:  # this is pixels per period
+        return None
+    return -b / k
+    
+
+
+def calcRange(im, center, is_needed_color, angle):
+    #print("Angle = ", angle)
+    starts = []
+    ends = []
+    sxs = []
+    exs = []
+    for d in range(-FRAMES_CONSIDER+1, 1):
+        start = None
+        end = None
+        for i in range(RADIUS):
+            x = int(center[0] + i * math.cos(angle))
+            y = int(center[1] + i * math.sin(angle))
+            if is_fixed_point(im, x, y):
+                continue
+            color = im[d - FRAMES_OFFSET][y][x]
+            if start is None and is_needed_color(color):
+                start = i
+            if start is not None and end is None and is_none_color(color):
+                end = i
+                break
+        if start is not None:
+            starts.append(start)
+            sxs.append(d)
+        if end is not None:
+            ends.append(end)
+            exs.append(d)
+    #print("starts=",starts)
+    #print("ends=",ends)
+    if len(starts) < 0.7 * FRAMES_CONSIDER:
+        return None
+    expected_start = solve_reg(sxs, starts)
+    if expected_start:
+        expected_start *= PERIOD
+    expected_end = solve_reg(exs, ends)
+    if len(ends) < 0.5 * FRAMES_CONSIDER:
+        expected_end = None
+    if expected_end:
+        expected_end *= PERIOD
+    if expected_start:
+        print("Angle = ", angle)
+        print("starts=",starts, sxs)
+        print("ends=",ends, exs)
+        print("expecteds=", expected_start, expected_end)
+    if not expected_start or expected_start < -PERIOD:
+        return None
+    if not expected_end:
+        return Range(expected_start, MAX_TIME)
+    if expected_end < expected_start - PERIOD:
+        return None
+    return Range(expected_start, expected_end)
+
+
+def merge(range1, range2):
+    if not range1:
+        return range2
+    if not range2:
+        return range1
+    return Range(min(range1.start, range2.start), max(range1.end, range2.end))
+
+
+def analyze(fname, center):
+    TYPES = ((TYPE_RAIN, is_rain_color),
+             (TYPE_STORM, is_storm_color),
+             (TYPE_HAIL, is_hail_color))
+    
+    im = load_image(fname)
+    #return colorize(im)
+    statuses = []
+    for t in TYPES:
+        print("Type ", t[0])
+        r = None
+        for d in range(DIRECTIONS):
+            r = merge(r, calcRange(im, center, t[1], d / DIRECTIONS * 2 * math.pi))
+        if r:
+            statuses.append(Status(r.start, r.end, t[0]))
+    if len(statuses) == 0:
+        return None
+    statuses.sort(key = lambda r: r.start)
+    print("statuses=", statuses)
+    start = statuses[0].start
+    end = statuses[0].end
+    type = statuses[0].type
+    for s in statuses:
+        if s.start > end + PERIOD:
+            break
+        end = max(end, s.end)
+        type = max(type, s.type)
+    return Status(start, end, type)
+        
+
+# helper
 def colorize(im):
     result = Image.new("RGB", (im[0].shape[1], im[0].shape[0]))
     print(im[0].shape)
@@ -81,6 +218,8 @@ def colorize(im):
                 elif is_rain_color(sourceColor):
                     color = (0, 0, 256)
                 elif is_storm_color(sourceColor):
+                    color = (128, 0, 0)
+                elif is_hail_color(sourceColor):
                     color = (256, 0, 0)
                 else:
                     color = (0, 256, 0)
@@ -91,39 +230,7 @@ def colorize(im):
     result.save("test.png")
     
     
-def load_image(fname):
-    im = Image.open(fname)
-    res = []
-    while True:
-        res.append(numpy.array(im.convert("RGB")))
-        try:
-            im.seek(im.tell() + 1)
-        except EOFError:
-            break
-    return res
-
-
-def analyze(fname):
-    im = load_image(fname)
-    return colorize(im)
-
-    stormRange = None
-    rainRange = None
-    for d in range(30):
-        stormRange = merge(stormRange, calcRange(im, is_storm_color))
-        rainRange = merge(rainRange, calcRange(im, is_rain_color))
-    if not stormRange:
-        if not rainRange:
-            return Status(None, None, TYPE_NONE)
-        return Status(rainRange.start, rainRange.end, TYPE_RAIN)
-    if not rainRange:
-        return Status(stormRange.start, stormRange.end, TYPE_STORM)
-    if rainRange.end < stormRange.start:
-        return Status(rainRange.start, rainRange.end, TYPE_RAIN)
-    if stormRange.end < rainRange.start:
-        return Status(stormRange.start, stormRange.end, TYPE_STORM)
-    stormRange = merge(stormRange, rainRange)
-    return Status(stormRange.start, stormRange.end, TYPE_STORM)
-        
-print(analyze("images/2017-05-24T22:02:54.640131.gif"))
+#print(analyze("images/2017-05-24T22:02:54.640131.gif", TEST))
+print(analyze("images/2017-05-25T18:36:45.608338.gif", TEST))
+#download()
     
