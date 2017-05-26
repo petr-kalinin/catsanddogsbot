@@ -7,6 +7,9 @@ import time
 from collections import namedtuple
 import numpy
 import math
+import hashlib
+
+IS_MAIN = __name__ == '__main__'
 
 URL = "***REMOVED***"
 DIR = "images"
@@ -39,14 +42,18 @@ Range = namedtuple('Range', 'start end')
 Status = namedtuple('Status', 'start end type')
 
 
-def download():
+def download(last_hash=None):
     os.makedirs(DIR, exist_ok=True)
     response = request.urlopen(URL)
     data = response.read()
+    new_hash = hashlib.md5(data).hexdigest()
+    if new_hash == last_hash:
+        return None, last_hash
+
     fname = DIR + "/" + datetime.now().isoformat() + ".gif"
     with open(fname, "wb") as f:
         f.write(data)
-    return fname
+    return fname, new_hash
 
 
 def load_image(fname):
@@ -101,13 +108,15 @@ def solve_reg(xs, ys):
     if all(ys == ys[0]):
         return None
     r = numpy.corrcoef(xs, ys)[0][1]
-    print("xs=",xs, "ys=",ys)
-    print("r=",r)
-    if r > -0.7:
+    if IS_MAIN:
+        print("xs=",xs, "ys=",ys)
+        print("r=",r)
+    if r > -0.93:
         return None
     A = numpy.vstack([xs, numpy.ones(len(xs))]).T
     k, b = numpy.linalg.lstsq(A, ys)[0]
-    print("kb=", k, b)
+    if IS_MAIN:
+        print("kb=", k, b)
     if abs(k) < 1:  # this is pixels per period
         return None
     return -b / k
@@ -140,8 +149,6 @@ def calcRange(im, center, is_needed_color, angle):
         if end is not None:
             ends.append(end)
             exs.append(d)
-    #print("starts=",starts)
-    #print("ends=",ends)
     if len(starts) < 0.7 * FRAMES_CONSIDER:
         return None
     expected_start = solve_reg(sxs, starts)
@@ -152,12 +159,12 @@ def calcRange(im, center, is_needed_color, angle):
         expected_end = None
     if expected_end:
         expected_end *= PERIOD
-    if expected_start:
+    if IS_MAIN and expected_start:
         print("Angle = ", angle)
         print("starts=",starts, sxs)
         print("ends=",ends, exs)
         print("expecteds=", expected_start, expected_end)
-    if not expected_start or expected_start < -PERIOD:
+    if not expected_start or expected_start < -PERIOD or expected_start > MAX_START:
         return None
     if not expected_end:
         return Range(expected_start, MAX_TIME)
@@ -174,7 +181,7 @@ def merge(range1, range2):
     return Range(min(range1.start, range2.start), max(range1.end, range2.end))
 
 
-def analyze(fname, center):
+def analyze(fname, center=NNOV):
     TYPES = ((TYPE_RAIN, is_rain_color),
              (TYPE_STORM, is_storm_color),
              (TYPE_HAIL, is_hail_color))
@@ -183,7 +190,7 @@ def analyze(fname, center):
     #return colorize(im)
     statuses = []
     for t in TYPES:
-        print("Type ", t[0])
+        #print("Type ", t[0])
         r = None
         for d in range(DIRECTIONS):
             r = merge(r, calcRange(im, center, t[1], d / DIRECTIONS * 2 * math.pi))
@@ -192,7 +199,8 @@ def analyze(fname, center):
     if len(statuses) == 0:
         return None
     statuses.sort(key = lambda r: r.start)
-    print("statuses=", statuses)
+    if IS_MAIN:
+        print("statuses=", statuses)
     start = statuses[0].start
     end = statuses[0].end
     type = statuses[0].type
@@ -203,15 +211,15 @@ def analyze(fname, center):
         type = max(type, s.type)
     if start > MAX_START:
         return None
-    return Status(start, end, type)
+    return Status(int(start), int(end), type)
         
 
 # helper
 def colorize(im):
     result = Image.new("RGB", (im[0].shape[1], im[0].shape[0]))
-    print(im[0].shape)
+    #print(im[0].shape)
     for x in range(im[0].shape[1]):
-        print(x)
+        #print(x)
         for y in range(im[0].shape[0]):
             try:
                 sourceColor = im[-1][y][x]
@@ -234,7 +242,6 @@ def colorize(im):
     result.save("test.png")
     
     
-#print(analyze("images/2017-05-24T22:02:54.640131.gif", TEST))
-#print(analyze("images/2017-05-25T18:36:45.608338.gif", TEST))
-print(analyze(download(), NNOV))
+if IS_MAIN:
+    print(analyze(download()[0], NNOV))
     

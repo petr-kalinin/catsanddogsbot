@@ -2,3 +2,6 @@ images
 t
 *.png
 *.gif
+main.sh
+__pycache__
+data
