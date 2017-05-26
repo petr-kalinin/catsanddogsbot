@@ -16,6 +16,7 @@ NNOV = (612,448)
 #TEST = (240, 559)
 #TEST = (569, 444)
 #TEST = (625, 381)
+#TEST = (627, 447)
 TEST = NNOV
 
 TYPE_HAIL = 3
@@ -32,6 +33,7 @@ FRAMES_OFFSET = 6  # how many cloned frames at gif end
 FRAMES_CONSIDER = 9
 
 MAX_TIME = 100*PERIOD
+MAX_START = 1.5 * 60
 
 Range = namedtuple('Range', 'start end')
 Status = namedtuple('Status', 'start end type')
@@ -199,6 +201,8 @@ def analyze(fname, center):
             break
         end = max(end, s.end)
         type = max(type, s.type)
+    if start > MAX_START:
+        return None
     return Status(start, end, type)
         
 
@@ -231,6 +235,6 @@ def colorize(im):
     
     
 #print(analyze("images/2017-05-24T22:02:54.640131.gif", TEST))
-print(analyze("images/2017-05-25T18:36:45.608338.gif", TEST))
-#download()
+#print(analyze("images/2017-05-25T18:36:45.608338.gif", TEST))
+print(analyze(download(), NNOV))
     
