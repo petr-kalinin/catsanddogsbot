@@ -90,7 +90,8 @@ def is_hail_color(color):
 def is_none_color(color):
     r, g, b = numpy.int_(color)
     a = (r + g + b) / 3
-    return r > 0.8*a and b > 0.8*a and g > 0.8*a
+    return ((r > 0.8*a and b > 0.8*a and g > 0.8*a)
+        or (g > 2*r and g > 0.8*b and b > 0.8*g))
     
         
 def is_fixed_point(im, x, y):
@@ -218,7 +219,8 @@ def analyze(fname, center=NNOV):
         
 
 # helper
-def colorize(im):
+def colorize(fname):
+    im = load_image(fname)
     result = Image.new("RGB", (im[0].shape[1], im[0].shape[0]))
     #print(im[0].shape)
     for x in range(im[0].shape[1]):
@@ -246,5 +248,6 @@ def colorize(im):
     
     
 if IS_MAIN:
-    print(analyze(download()[0], NNOV))
+    #print(analyze(download()[0], NNOV))
+    print(colorize(download()[0]))
     

@@ -31,7 +31,7 @@ def now_min():
 
 def format_status(status):
     if not status:
-        return "В ближайшее время дождя не ожидается"
+        return "В ближайшее время сильных осадков не ожидается"
     now = now_min()
     text = ''
     if status.start < now:
@@ -43,7 +43,7 @@ def format_status(status):
     elif status.type == 2:
         text += 'гроза'
     elif status.type == 3:
-        text += 'град'
+        text += 'гроза с градом'
     else:
         text += '???'
     end_time = status.end - now
@@ -84,7 +84,8 @@ def substantial_change(a, b):
         return True
     if a.type != b.type:
         return True
-    return abs(a.start - b.start) > MIN_TIME_FOR_SUBSTANTIAL
+    return (abs(a.start - b.start) > MIN_TIME_FOR_SUBSTANTIAL
+        or abs(a.end - b.end) > 2 * MIN_TIME_FOR_SUBSTANTIAL)
 
 
 def send_all(status):
