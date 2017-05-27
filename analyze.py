@@ -45,7 +45,10 @@ Status = namedtuple('Status', 'start end type')
 def download(last_hash=None):
     os.makedirs(DIR, exist_ok=True)
     response = request.urlopen(URL)
-    data = response.read()
+    try:
+        data = response.read()
+    except:
+        return None, last_hash
     new_hash = hashlib.md5(data).hexdigest()
     if new_hash == last_hash:
         return None, last_hash
