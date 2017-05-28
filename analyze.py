@@ -193,6 +193,7 @@ def merge(range1, range2):
 
 
 def analyze(fname, center=NNOV):
+    #return Status(13, 27, TYPE_STORM)
     TYPES = ((TYPE_RAIN, is_rain_color),
              (TYPE_STORM, is_storm_color),
              (TYPE_HAIL, is_hail_color))
