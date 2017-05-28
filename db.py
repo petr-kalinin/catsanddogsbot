@@ -40,7 +40,7 @@ class Db(object):
     def getUsers(self):
         users = self._getValue("users")
         if users is None:
-            self.table.insert(USERS_KEY, {'users': []})
+            self.table.insert("users", {'users': []})
             return []
         return users
     
