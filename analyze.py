@@ -42,6 +42,10 @@ Range = namedtuple('Range', 'start end')
 Status = namedtuple('Status', 'start end type')
 
 
+class CouldNotLoadError(Exception):
+    pass
+
+
 def download(last_hash=None):
     os.makedirs(DIR, exist_ok=True)
     response = request.urlopen(URL)
@@ -60,15 +64,18 @@ def download(last_hash=None):
 
 
 def load_image(fname):
-    im = Image.open(fname)
-    res = []
-    while True:
-        res.append(numpy.array(im.convert("RGB")))
-        try:
-            im.seek(im.tell() + 1)
-        except EOFError:
-            break
-    return res
+    try:
+        im = Image.open(fname)
+        res = []
+        while True:
+            res.append(numpy.array(im.convert("RGB")))
+            try:
+                im.seek(im.tell() + 1)
+            except EOFError:
+                break
+        return res
+    except:
+        raise CouldNotLoadError()
 
 
 def is_rain_color(color):

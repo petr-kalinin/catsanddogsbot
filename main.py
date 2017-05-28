@@ -13,7 +13,7 @@ import traceback
 import pdb
 
 import db as db_module
-from analyze import analyze, download, Status, MAX_START
+from analyze import analyze, download, Status, MAX_START, CouldNotLoadError
 
 BOT_NAME="catsanddogsbot"
 
@@ -132,5 +132,8 @@ print ('Listening ...')
 
 while 1:
     print("Trying to download")
-    update_forecast()
+    try:
+        update_forecast()
+    except CouldNotLoadError:
+        pass
     time.sleep(120)
