@@ -155,9 +155,15 @@ def calcRange(im, center, is_needed_color, angle):
         if start is not None:
             starts.append(start)
             sxs.append(d)
+            if d >= -3:
+                starts.append(start)
+                sxs.append(d)
         if end is not None:
             ends.append(end)
             exs.append(d)
+            if d >= -3:
+                ends.append(end)
+                exs.append(d)
     if len(starts) < 0.7 * FRAMES_CONSIDER:
         return None
     expected_start = solve_reg(sxs, starts)
