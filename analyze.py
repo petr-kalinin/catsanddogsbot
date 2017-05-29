@@ -8,6 +8,7 @@ from collections import namedtuple
 import numpy
 import math
 import hashlib
+import sys
 
 IS_MAIN = __name__ == '__main__'
 
@@ -95,10 +96,7 @@ def is_hail_color(color):
         
         
 def is_none_color(color):
-    r, g, b = numpy.int_(color)
-    a = (r + g + b) / 3
-    return ((r > 0.8*a and b > 0.8*a and g > 0.8*a)
-        or (g > 2*r and g > 0.8*b and b > 0.8*g))
+    return not  (is_rain_color(color) or is_storm_color(color) or is_hail_color(color))
     
         
 def is_fixed_point(im, x, y):
@@ -202,7 +200,8 @@ def analyze(fname, center=NNOV):
     #return colorize(im)
     statuses = []
     for t in TYPES:
-        #print("Type ", t[0])
+        if IS_MAIN:
+            print("Type ", t[0])
         r = None
         for d in range(DIRECTIONS):
             r = merge(r, calcRange(im, center, t[1], d / DIRECTIONS * 2 * math.pi))
@@ -257,5 +256,6 @@ def colorize(fname):
     
 if IS_MAIN:
     #print(analyze(download()[0], NNOV))
-    print(colorize(download()[0]))
+    print(analyze(sys.argv[1], NNOV))
+    #print(colorize(download()[0]))
     
