@@ -38,6 +38,7 @@ FRAMES_CONSIDER = 9
 
 MAX_TIME = 100*PERIOD
 MAX_START = 1.5 * 60
+MIN_LENGTH = 3
 
 Range = namedtuple('Range', 'start end')
 Status = namedtuple('Status', 'start end type')
@@ -227,6 +228,8 @@ def analyze(fname, center=NNOV):
         end = max(end, s.end)
         type = max(type, s.type)
     if start > MAX_START:
+        return None
+    if end < start + MIN_LENGTH:
         return None
     return Status(int(start), int(end), type)
         

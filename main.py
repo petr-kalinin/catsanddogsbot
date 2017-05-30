@@ -51,7 +51,7 @@ def format_status(status):
         return "В ближайшее время сильных осадков не ожидается"
     now = now_min()
     text = ''
-    if status.start < now:
+    if status.start < now + 5:
         text = 'В ближайшее время ожидается '
     else:
         text = 'Через %d минут ожидается ' % round(status.start - now, -1)
@@ -65,7 +65,10 @@ def format_status(status):
         text += '???'
     end_time = status.end - now
     if end_time < MAX_START:
-        text += ' длительностью %d минут' % round(status.end - status.start, -1)
+        length = status.end - status.start
+        if length < 10:
+            length = 10
+        text += ' длительностью %d минут' % round(length, -1)
     text += "."
     return text
 
