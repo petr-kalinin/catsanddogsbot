@@ -96,7 +96,7 @@ def substantial_change(a, b):
     if not b and not a:
         return False
     if not b:
-        return a.end > now + MIN_TIME_FOR_SUBSTANTIAL_END
+        return not a #a.end > now + MIN_TIME_FOR_SUBSTANTIAL_END
     if not a:
         return True
     if a.type != b.type:
