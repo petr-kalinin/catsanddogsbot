@@ -15,6 +15,9 @@ import pdb
 import db as db_module
 from analyze import analyze, download, Status, MAX_START, CouldNotLoadError
 
+TOKEN = sys.argv[1]
+SOURCE_URL = sys.argv[2]
+
 BOT_NAME="catsanddogsbot"
 
 MIN_TIME_FOR_SUBSTANTIAL = 20
@@ -118,7 +121,7 @@ def send_all(status):
     
 def update_forecast():
     last_hash = db.getHash()
-    new_file, new_hash = download(last_hash)
+    new_file, new_hash = download(SOURCE_URL, last_hash)
     if not new_file:
         print("File not changed, hash=", last_hash)
         return
@@ -144,7 +147,6 @@ def update_forecast():
     send_all(new_status)
     
             
-TOKEN = sys.argv[1]  # get token from command-line
 bot = telepot.Bot(TOKEN)
 
 MessageLoop(bot, handle).run_as_thread()

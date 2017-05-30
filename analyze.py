@@ -12,7 +12,6 @@ import sys
 
 IS_MAIN = __name__ == '__main__'
 
-URL = "***REMOVED***"
 DIR = "images"
 NNOV = (612,448)
 #TEST = (420, 317)
@@ -48,9 +47,9 @@ class CouldNotLoadError(Exception):
     pass
 
 
-def download(last_hash=None):
+def download(url, last_hash=None):
     os.makedirs(DIR, exist_ok=True)
-    response = request.urlopen(URL)
+    response = request.urlopen(url)
     try:
         data = response.read()
     except:
