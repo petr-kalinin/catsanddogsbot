@@ -49,8 +49,8 @@ class CouldNotLoadError(Exception):
 
 def download(url, last_hash=None):
     os.makedirs(DIR, exist_ok=True)
-    response = request.urlopen(url)
     try:
+        response = request.urlopen(url)
         data = response.read()
     except:
         return None, last_hash
