@@ -115,8 +115,10 @@ def send_all(status):
     users = db.getUsers()
     status_text = format_status(status)
     for user in users:
-        bot.sendMessage(user, status_text)
-            
+        try:
+            bot.sendMessage(user, status_text)
+        except:
+            pass
 
     
 def update_forecast():
