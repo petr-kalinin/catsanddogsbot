@@ -101,6 +101,8 @@ def is_none_color(color):
         
 def is_fixed_point(im, x, y):
     col = im[0][y][x]
+    if (x == 0):
+        print(y)
     if is_none_color(col):
         return False
     for subim in im:
@@ -109,6 +111,78 @@ def is_fixed_point(im, x, y):
     return True
 
 
+def convert(im):
+    TYPES = ((TYPE_RAIN, is_rain_color),
+             (TYPE_STORM, is_storm_color),
+             (TYPE_HAIL, is_hail_color))
+    
+    #print(im[-1].shape)
+    #sys.exit(0)
+
+    fixed = [[is_fixed_point(im, x, y) 
+              for x in range(im[-1].shape[1])]
+              for y in range(im[-1].shape[0])]  
+    
+    print("!")
+    result = [numpy.zeros((im[-1].shape[:-1]), numpy.int8) for f in range(len(im))]
+    
+    print(len(fixed))
+    
+    dd = [s * d for d in range (6) for s in (-1, 1)]
+    print("dd=", dd)
+    
+    for f in range(0, len(im)):
+        for x in range(im[f].shape[1]):
+            print(f, x)
+            for y in range(im[f].shape[0]):
+                found = False
+                for dx in dd:
+                    for dy in dd:
+                        xx = x + dx
+                        yy = y + dy
+                        if ((xx >= 0) and (xx < im[-1].shape[1])
+                                and (yy >= 0) and (yy < im[-1].shape[0])
+                                and not fixed[yy][xx]):
+                            for t in TYPES:
+                                if t[1](im[f][yy][xx]):
+                                    result[f][y][x] = t[0]
+                                    found = True
+                                    break
+                            if not found:
+                                result[f][y][x] = TYPE_NONE
+                                found = True
+                            break
+                    if found:
+                        break
+    return result
+
+
+def analyze_new(fname, center=NNOV):
+    TYPES = ((TYPE_RAIN, is_rain_color),
+             (TYPE_STORM, is_storm_color),
+             (TYPE_HAIL, is_hail_color))
+    
+    im = load_image(fname)
+    data = convert(im)
+    
+    colorize_new(data)
+
+
+def colorize_new(data):
+    COLORS = {TYPE_NONE: (0, 0, 0), 
+              TYPE_RAIN: (0, 0, 256),
+              TYPE_STORM: (256, 0, 0),
+              TYPE_HAIL: (0, 256, 0)}
+    result = Image.new("RGB", (data[-1].shape[1], data[-1].shape[0]))
+    #print(im[0].shape)
+    for x in range(data[-1].shape[1]):
+        print(x)
+        for y in range(data[-1].shape[0]):
+            result.putpixel((x, y), COLORS[data[-1][y][x]])
+    result.save("test.png")
+
+
+#----- old way
 def solve_reg(xs, ys):
     if len(xs) <= 2:
         return None
@@ -234,6 +308,8 @@ def analyze(fname, center=NNOV):
     if end < start + MIN_LENGTH:
         return None
     return Status(int(start), int(end), type)
+
+#----------
         
 
 # helper
@@ -267,6 +343,6 @@ def colorize(fname):
     
 if IS_MAIN:
     #print(analyze(download()[0], NNOV))
-    print(analyze(sys.argv[1], NNOV))
+    print(analyze_new(sys.argv[1], NNOV))
     #print(colorize(sys.argv[1]))
     

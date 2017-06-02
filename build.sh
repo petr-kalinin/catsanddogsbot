@@ -1,0 +1,1 @@
+g++ -g --std=c++11 analyze.cpp -lopencv_highgui -lopencv_core -lproj -o analyze
