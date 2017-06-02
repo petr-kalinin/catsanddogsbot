@@ -133,7 +133,6 @@ def solve_reg(xs, ys):
 
 
 def calcRange(im, center, is_needed_color, angle):
-    #print("Angle = ", angle)
     starts = []
     ends = []
     sxs = []
@@ -177,7 +176,11 @@ def calcRange(im, center, is_needed_color, angle):
     if IS_MAIN and expected_start:
         print("Angle = ", angle)
         print("starts=",starts, sxs)
+        print(" ".join(["(%d %d)" % (int(center[0] + i * math.cos(angle)), int(center[1] + i * math.sin(angle)))
+                        for i in starts]))
         print("ends=",ends, exs)
+        print(" ".join(["(%d %d)" % (int(center[0] + i * math.cos(angle)), int(center[1] + i * math.sin(angle)))
+                        for i in ends]))
         print("expecteds=", expected_start, expected_end)
     if not expected_start or expected_start < -PERIOD or expected_start > MAX_START:
         return None
@@ -236,11 +239,11 @@ def analyze(fname, center=NNOV):
 # helper
 def colorize(fname):
     im = load_image(fname)
-    result = Image.new("RGB", (im[0].shape[1], im[0].shape[0]))
+    result = Image.new("RGB", (im[-1].shape[1], im[-1].shape[0]))
     #print(im[0].shape)
-    for x in range(im[0].shape[1]):
+    for x in range(im[-1].shape[1]):
         #print(x)
-        for y in range(im[0].shape[0]):
+        for y in range(im[-1].shape[0]):
             try:
                 sourceColor = im[-1][y][x]
                 if is_fixed_point(im, x, y):
@@ -265,5 +268,5 @@ def colorize(fname):
 if IS_MAIN:
     #print(analyze(download()[0], NNOV))
     print(analyze(sys.argv[1], NNOV))
-    #print(colorize(download()[0]))
+    #print(colorize(sys.argv[1]))
     
