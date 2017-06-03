@@ -11,7 +11,9 @@ using Data = cv::Mat_<uchar>;
 const Color TRANSPARENT(0,0,0,0);
 
 enum {
+    TYPE_NO_DATA,
     TYPE_NONE,
+    TYPE_CLOUD,
     TYPE_RAIN,
     TYPE_STORM,
     TYPE_HAIL,
@@ -19,54 +21,105 @@ enum {
 };
 
 namespace color_detector {
-    bool is_rain_color(Color color) {
+    
+    bool is_cloud_color(const Color& color) {
         int r = color[2];
         int g = color[1];
         int b = color[0];
-        return b > 2*g && b > 2*r;
+        return b > 0.8*g && g > 0.4*b && b > 3*r;
+    }
+    
+    bool is_rain_color(const Color& color) {
+        int r = color[2];
+        int g = color[1];
+        int b = color[0];
+        return b > 3*g && b > 3*r;
     }
 
 
-    bool is_storm_color(Color color) {
+    bool is_storm_color(const Color& color) {
         int r = color[2];
         int g = color[1];
         int b = color[0];
-        return (r > 1.3*g && r > 2*b);
+        return (r > 1.3*g && r > 3*b);
     }
 
-    bool is_hail_color(Color color) {
+    bool is_hail_color(const Color& color) {
         int r = color[2];
         int g = color[1];
         int b = color[0];
-        return ((g > 2*r && g > 2*b) // greens
+        return ((g > 3*r && g > 3*b) // greens
             || (r > 3*g && b > 3*g && r > 0.5*b && b > 0.5*r)); // violets
     }
         
-    bool is_none_color(Color color) {
-        return !(is_rain_color(color) || is_storm_color(color) || is_hail_color(color));
+    bool is_none_color(const Color& color) {
+        int r = color[2];
+        int g = color[1];
+        int b = color[0];
+        int a = (r + g + b)/3;
+        return (r > 0.8*a && g > 0.8*a && b > 0.8*a && a < 160 && a > 60)  // grays
+            || (r > 3*b && g > 3*b && r > 0.8*g && g > 0.8*r);  // yellows
     }
     
-    int detect(Color color) {
-        if (is_rain_color(color))
-            return TYPE_RAIN;
+    bool is_no_data_color(const Color& color) {
+        int r = color[2];
+        int g = color[1];
+        int b = color[0];
+        int a = (r + g + b)/3;
+        return (r > 0.8*a && g > 0.8*a && b > 0.8*a && a >= 160);
+    }
+    
+    int detect(const Color& color) {
+        if (is_hail_color(color))
+            return TYPE_HAIL;
         else if (is_storm_color(color))
             return TYPE_STORM;
-        else if (is_hail_color(color))
-            return TYPE_HAIL;
+        else if (is_rain_color(color))
+            return TYPE_RAIN;
+        else if (is_cloud_color(color))
+            return TYPE_CLOUD;
         else if (is_none_color(color))
             return TYPE_NONE;
+        else if (is_no_data_color(color))
+            return TYPE_NO_DATA;
         else
             return TYPE_UNKNOWN;
     }
 }
 
-void colorize(const Data& data) {
+bool isFixedColor(const std::vector<Image>& frames, int x, int y) {
+    auto col = frames[0](y, x);
+    //if (color_detector::is_none_color(col))
+        //return false;
+    for (const auto& frame: frames) {
+        if (frame(y, x) != col)
+            return false;
+    }
+    return true;
+}
+
+std::vector<int> makeDd(int max) {
+    std::vector<int> dd;
+    for (int x = 0; x <= max; x++)
+        for (int s: {-1, 1}) 
+            dd.push_back(x * s);
+    return dd;
+}
+
+template<class M>
+bool goodPoint(const M& im, int x, int y) {
+    return (x>=0) && (x<im.cols) && (y>=0) && (y<im.rows);
+}
+
+void colorize(const Data& data, const std::string& filename) {
     static const std::vector<Color> COLORS{
         {0, 0, 0, 255},
+        {128, 128, 128, 255},
+        {128, 0, 0, 255},
         {255, 0, 0, 255},
         {0, 0, 255, 255},
         {0, 255, 0, 255},
-        {255, 255, 255, 255}
+        {255, 255, 255}
     };
     Image im(data.rows, data.cols, TRANSPARENT);
     for (int y = 0; y < data.rows; y++)
@@ -77,30 +130,15 @@ void colorize(const Data& data) {
     std::vector<int> compression_params;
     compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
     compression_params.push_back(9);
-    cv::imwrite("test.png", im, compression_params);    
+    cv::imwrite(filename + ".png", im, compression_params);    
 }
 
-bool isFixedColor(const std::vector<Image>& frames, int x, int y) {
-    auto col = frames[0](y, x);
-    if (color_detector::is_none_color(col))
-        return false;
-    for (const auto& frame: frames) {
-        if (frame(y, x) != col)
-            return false;
+void colorize(const std::vector<Data>& data, const std::string& filename) {
+    for (int i = 0; i < data.size(); i++) {
+        char buffer[100];
+        sprintf(buffer, filename.c_str(), i);
+        colorize(data[i], buffer);
     }
-    return true;
-}
-
-std::vector<int> makeDd() {
-    std::vector<int> dd;
-    for (int x = 0; x <= 5; x++)
-        for (int s: {-1, 1}) 
-            dd.push_back(x * s);
-    return dd;
-}
-
-bool goodPoint(const Image& im, int x, int y) {
-    return (x>=0) && (x<im.cols) && (y>=0) && (y<im.rows);
 }
 
 int main(int argc, char* argv[]) {
@@ -118,33 +156,83 @@ int main(int argc, char* argv[]) {
             fixeds(y, x) = isFixedColor(frames, x, y);
         }
     }
-        
-    auto dd = makeDd();
     
-    std::vector<Data> dataFrames(frames.size());
+    //colorize(fixeds);
+    //return 0;
+    
+        
+    auto dd = makeDd(2);
+    
+    std::vector<Data> sourceDataFrames;
     for (const auto& frame: frames) {
-        dataFrames.emplace_back(Data::zeros(frame.rows, frame.cols));
+        sourceDataFrames.emplace_back(Data::zeros(frame.rows, frame.cols));
         for (int y = 0; y < frame.rows; y++) {
             for (int x = 0; x < frame.cols; x++) {
-                bool found = false;
-                for (int dx: dd) {
-                    for (int dy: dd) {
-                        int xx = x + dx;
-                        int yy = y + dy;
-                        if (goodPoint(frame, xx, yy) && !fixeds(yy, xx)) {
-                            dataFrames.back()(y, x) = color_detector::detect(frame(yy, xx));
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found) break;
-                }
-                if (!found)
-                    dataFrames.back()(y, x) = TYPE_NONE;
+                sourceDataFrames.back()(y, x) = color_detector::detect(frame(y, x));
             }
         }
     }
     
-    colorize(dataFrames.back());
+    std::vector<Data> dataFrames;
+    for (const auto& frame: sourceDataFrames) {
+        dataFrames.emplace_back(Data::zeros(frame.rows, frame.cols));
+        for (int y = 0; y < frame.rows; y++) {
+            for (int x = 0; x < frame.cols; x++) {
+                bool found = false;
+                bool wasNone = false;
+                bool wasNoData = false;
+                for (int dx: dd) {
+                    for (int dy: dd) {
+                        int xx = x + dx;
+                        int yy = y + dy;
+                        if (goodPoint(frame, xx, yy)) {
+                            auto color = frame(yy, xx);
+                            if (!fixeds(yy, xx)) {
+                                dataFrames.back()(y, x) = color;
+                                found = true;
+                                break;
+                            }
+                            wasNone |= (color == TYPE_NONE);
+                            wasNoData |= (color == TYPE_NO_DATA);
+                        }
+                    }
+                    if (found) break;
+                }
+                if (!found) {
+                    if (wasNone)
+                        dataFrames.back()(y, x) = TYPE_NONE;
+                    else if (wasNoData)
+                        dataFrames.back()(y, x) = TYPE_NO_DATA;
+                    else
+                        dataFrames.back()(y, x) = frame(y, x);
+                }
+            }
+        }
+    }
+    
+    dd = makeDd(dataFrames.size());
+    
+    for (int i = 0; i < dataFrames.size(); i++) {
+        auto& frame = dataFrames[i];
+        for (int y = 0; y < frame.rows; y++) {
+            for (int x = 0; x < frame.cols; x++) {
+                if (frame(y, x) == TYPE_NO_DATA) {
+                    for (int di: dd) {
+                        int ii = i + di;
+                        if (ii < 0 || ii >= dataFrames.size()) continue;
+                        const auto& frame2 = dataFrames[ii];
+                        if (frame2(y, x) != TYPE_NO_DATA) {
+                            frame(y, x) = frame2(y, x);
+                        }
+                    }
+                }
+            }
+        }
+    }
+                            
+                        
+                    
+    
+    colorize(dataFrames, "test%02d");
     return 0;
 }
