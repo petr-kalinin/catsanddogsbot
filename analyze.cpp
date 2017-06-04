@@ -52,7 +52,7 @@ namespace color_detector {
         int r = color[2];
         int g = color[1];
         int b = color[0];
-        return ((g > 3*r && g > 3*b) // greens
+        return ((g > 2*r && g > 3*b) // greens
             || (r > 3*g && b > 3*g && r > 0.5*b && b > 0.5*r)); // violets
     }
         
@@ -219,7 +219,7 @@ void colorize(const Data& data, const std::string& filename) {
         {255, 0, 0, 255},
         {0, 0, 255, 255},
         {0, 255, 0, 255},
-        {255, 255, 255}
+        {255, 0, 255, 255}
     };
     Image im(data.rows, data.cols, TRANSPARENT);
     for (int y = 0; y < data.rows; y++)
@@ -276,7 +276,7 @@ int main(int argc, char* argv[]) {
 
     Flow flow;
     //cv::calcOpticalFlowFarneback(datas[0], datas[1], flow, 0.3, 20, 70, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
-    cv::calcOpticalFlowSparseToDense(datas[0], datas[1], flow);
+    //cv::calcOpticalFlowSparseToDense(datas[0], datas[1], flow);
     /*
     for (int i = 2; i < datas.size(); i++) {
         Flow flow2;
@@ -285,8 +285,29 @@ int main(int argc, char* argv[]) {
     }
     */
     
+    std::vector<cv::Point2f> features(1000, {-1, -1});
+    features.resize(1000, {-1, -1});
+    cv::goodFeaturesToTrack(datas[0], features, 1000, 0.01, 30);
+    
+    std::vector<cv::Point2f> features2(1000, {-1, -1});
+    std::vector<uchar> status(1000, 0);
+    std::vector<float> err(1000, 0);
+    cv::calcOpticalFlowPyrLK(datas[0], datas[1], features, features2, status, err);
+
+    for (int i = 0; i < features.size(); i++) {
+        std::cout << features[i] << " " << features2[i] << " " << (int)status[i] << " " << err[i] << std::endl;
+        const auto& f = features[i];
+        if (status[i])
+            datas[0](f.y, f.x) = TYPE_UNKNOWN;
+        else
+            datas[0](f.y, f.x) = TYPE_NO_DATA;
+        //datas[0](f.y+1, f.x) = TYPE_UNKNOWN;
+        //datas[0](f.y, f.x+1) = TYPE_UNKNOWN;
+        //datas[0](f.y+1, f.x+1) = TYPE_UNKNOWN;
+    }
+        
     colorize(datas, "test%02d");
-    colorize(flow, "test");
+    //colorize(flow, "test");
     
     return 0;
 }
