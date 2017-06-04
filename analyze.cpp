@@ -1,5 +1,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/video/tracking.hpp>
 
 #include <string>
 #include <iostream>
@@ -8,6 +10,8 @@
 using Color = cv::Vec4b;
 using Image = cv::Mat_<Color>;
 using Data = cv::Mat_<uchar>;
+using Flow = cv::Mat_<cv::Vec2f>;
+
 const Color TRANSPARENT(0,0,0,0);
 
 enum {
@@ -111,45 +115,18 @@ bool goodPoint(const M& im, int x, int y) {
     return (x>=0) && (x<im.cols) && (y>=0) && (y<im.rows);
 }
 
-void colorize(const Data& data, const std::string& filename) {
-    static const std::vector<Color> COLORS{
-        {0, 0, 0, 255},
-        {128, 128, 128, 255},
-        {128, 0, 0, 255},
-        {255, 0, 0, 255},
-        {0, 0, 255, 255},
-        {0, 255, 0, 255},
-        {255, 255, 255}
-    };
-    Image im(data.rows, data.cols, TRANSPARENT);
-    for (int y = 0; y < data.rows; y++)
-        for (int x = 0; x < data.cols; x++) {
-            im(y, x) = COLORS[data(y,x)];
-        }
-    
-    std::vector<int> compression_params;
-    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-    compression_params.push_back(9);
-    cv::imwrite(filename + ".png", im, compression_params);    
-}
-
-void colorize(const std::vector<Data>& data, const std::string& filename) {
-    for (int i = 0; i < data.size(); i++) {
-        char buffer[100];
-        sprintf(buffer, filename.c_str(), i);
-        colorize(data[i], buffer);
-    }
-}
-
-int main(int argc, char* argv[]) {
-    std::string fname = argv[1];
+std::vector<Image> loadImages(const std::string& filename) {
+    std::string fname = filename;
     std::vector<Image> frames;
     for (int frame = 0; frame <= 18; frame++) {
         char buffer[100];
         sprintf(buffer, fname.c_str(), frame);
         frames.push_back(cv::imread(buffer, -1));
     }
-    
+    return frames;
+}
+
+std::vector<Data> convertToDatas(const std::vector<Image>& frames) {
     Data fixeds = Data::zeros(frames[0].rows, frames[0].cols);
     for (int y = 0; y < fixeds.rows; y++) {
         for (int x = 0; x < fixeds.cols; x++) {
@@ -160,7 +137,6 @@ int main(int argc, char* argv[]) {
     //colorize(fixeds);
     //return 0;
     
-        
     auto dd = makeDd(2);
     
     std::vector<Data> sourceDataFrames;
@@ -226,13 +202,91 @@ int main(int argc, char* argv[]) {
                         }
                     }
                 }
+                if (frame(y, x) == TYPE_NO_DATA)
+                    frame(y, x) = TYPE_NONE;
             }
         }
     }
-                            
-                        
-                    
     
-    colorize(dataFrames, "test%02d");
+    return dataFrames;
+}
+
+void colorize(const Data& data, const std::string& filename) {
+    static const std::vector<Color> COLORS{
+        {0, 0, 0, 255},
+        {128, 128, 128, 255},
+        {128, 0, 0, 255},
+        {255, 0, 0, 255},
+        {0, 0, 255, 255},
+        {0, 255, 0, 255},
+        {255, 255, 255}
+    };
+    Image im(data.rows, data.cols, TRANSPARENT);
+    for (int y = 0; y < data.rows; y++)
+        for (int x = 0; x < data.cols; x++) {
+            im(y, x) = COLORS[data(y,x)];
+        }
+    
+    std::vector<int> compression_params;
+    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    compression_params.push_back(9);
+    cv::imwrite(filename + ".png", im, compression_params);    
+}
+
+void colorize(const std::vector<Data>& data, const std::string& filename) {
+    for (int i = 0; i < data.size(); i++) {
+        char buffer[100];
+        sprintf(buffer, filename.c_str(), i);
+        colorize(data[i], buffer);
+    }
+}
+
+void colorize(const Flow& flow, const std::string& filename) {
+    cv::Mat3f im(flow.rows, flow.cols, cv::Vec3f(0, 0, 0));
+    for (int y = 0; y < flow.rows; y++)
+        for (int x = 0; x < flow.cols; x++) {
+            float vx = flow(y, x)[0];
+            float vy = flow(y, x)[1];
+            float v = sqrt(vx*vx + vy*vy);
+            float dir = atan2(vy, vx);
+            if (dir < 0) dir += 2*M_PI;
+            float h = dir / 2 / M_PI * 360;
+            float val = v * 3e3;
+            if (val > 0.5) std::cout << vx << " " << vy << " " << v << std::endl;
+            im(y, x) = {h, 1, val};
+        }
+    std::cout << im(100, 100) << std::endl;
+    
+    cv::Mat4f converted;
+    cv::cvtColor(im, converted, cv::COLOR_HSV2BGR, 4);
+    Image result = converted * 256;
+    //result *= 256;
+    std::cout << result(100, 100) << std::endl;
+    //result = im;
+    std::vector<int> compression_params;
+    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    compression_params.push_back(9);
+    cv::imwrite(filename + ".png", result, compression_params);    
+}
+
+int main(int argc, char* argv[]) {
+    
+    auto images = loadImages(argv[1]);
+    auto datas = convertToDatas(images);
+
+    Flow flow;
+    //cv::calcOpticalFlowFarneback(datas[0], datas[1], flow, 0.3, 20, 70, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+    cv::calcOpticalFlowSparseToDense(datas[0], datas[1], flow);
+    /*
+    for (int i = 2; i < datas.size(); i++) {
+        Flow flow2;
+        cv::calcOpticalFlowFarneback(datas[i-1], datas[i], flow2, 0.3, 20, 70, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+        flow += flow2;
+    }
+    */
+    
+    colorize(datas, "test%02d");
+    colorize(flow, "test");
+    
     return 0;
 }
