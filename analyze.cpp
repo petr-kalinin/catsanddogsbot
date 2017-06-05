@@ -6,23 +6,23 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <queue>
 
-using Color = cv::Vec4b;
+using Color = cv::Vec4i;
 using Image = cv::Mat_<Color>;
 using Data = cv::Mat_<uchar>;
+using RichData = cv::Mat_<float>;
 using Flow = cv::Mat_<cv::Vec2f>;
 
 const Color TRANSPARENT(0,0,0,0);
 
-enum {
-    TYPE_NO_DATA,
-    TYPE_NONE,
-    TYPE_CLOUD,
-    TYPE_RAIN,
-    TYPE_STORM,
-    TYPE_HAIL,
-    TYPE_UNKNOWN
-};
+const int TYPE_NO_DATA = 0;
+const int TYPE_NONE = 1;
+const int TYPE_CLOUD = 2;
+const int TYPE_RAIN = 3;
+const int TYPE_STORM = 4;
+const int TYPE_HAIL = 5;
+const int TYPE_UNKNOWN = 6;
 
 namespace color_detector {
     
@@ -77,9 +77,9 @@ namespace color_detector {
         if (is_hail_color(color))
             return TYPE_HAIL;
         else if (is_storm_color(color))
-            return TYPE_STORM;
+            return TYPE_RAIN; //TYPE_STORM;
         else if (is_rain_color(color))
-            return TYPE_RAIN;
+            return TYPE_CLOUD; //TYPE_RAIN;
         else if (is_cloud_color(color))
             return TYPE_CLOUD;
         else if (is_none_color(color))
@@ -87,7 +87,90 @@ namespace color_detector {
         else if (is_no_data_color(color))
             return TYPE_NO_DATA;
         else
-            return TYPE_UNKNOWN;
+            return TYPE_CLOUD; //TYPE_UNKNOWN;
+    }
+}
+
+void colorize(const Data& data, const std::string& filename) {
+    static const std::vector<Color> COLORS{
+        {0, 0, 0, 255},
+        {128, 128, 128, 255},
+        {128, 0, 0, 255},
+        {255, 0, 0, 255},
+        {0, 0, 255, 255},
+        {0, 255, 0, 255},
+        {255, 0, 255, 255}
+    };
+    Image im(data.rows, data.cols, TRANSPARENT);
+    for (int y = 0; y < data.rows; y++)
+        for (int x = 0; x < data.cols; x++) {
+            im(y, x) = COLORS[data(y,x)];
+        }
+    
+    std::vector<int> compression_params;
+    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    compression_params.push_back(9);
+    cv::imwrite(filename + ".png", im, compression_params);    
+}
+
+void colorize(const RichData& data, const std::string& filename) {
+    static const std::vector<Color> COLORS{
+        {0, 0, 0, 255},
+        {128, 128, 128, 255},
+        {128, 0, 0, 255},
+        {255, 0, 0, 255},
+        {0, 0, 255, 255},
+        {0, 255, 0, 255},
+        {255, 0, 255, 255}
+    };
+    Image im(data.rows, data.cols, TRANSPARENT);
+    for (int y = 0; y < data.rows; y++)
+        for (int x = 0; x < data.cols; x++) {
+            int base = int(data(y, x));
+            float frac = data(y, x) - base;
+            im(y, x) = COLORS[base] + frac * (COLORS[base+1] - COLORS[base]);
+        }
+    
+    std::vector<int> compression_params;
+    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    compression_params.push_back(9);
+    cv::imwrite(filename + ".png", im, compression_params);    
+}
+
+void colorize(const Flow& flow, const std::string& filename) {
+    cv::Mat3f im(flow.rows, flow.cols, cv::Vec3f(0, 0, 0));
+    for (int y = 0; y < flow.rows; y++)
+        for (int x = 0; x < flow.cols; x++) {
+            float vx = flow(y, x)[0];
+            float vy = flow(y, x)[1];
+            float v = sqrt(vx*vx + vy*vy);
+            float dir = atan2(vy, vx);
+            if (dir < 0) dir += 2*M_PI;
+            float h = dir / 2 / M_PI * 360;
+            float val = (log10(v + 1e-10) + 10) / 10;
+            //if (val > 0.5) std::cout << vx << " " << vy << " " << v << std::endl;
+            im(y, x) = {h, 1, val};
+        }
+    //std::cout << im(100, 100) << std::endl;
+    
+    cv::Mat4f converted;
+    cv::cvtColor(im, converted, cv::COLOR_HSV2BGR, 4);
+    Image result = converted * 256;
+    //result *= 256;
+    //std::cout << result(100, 100) << std::endl;
+    //result = im;
+    std::vector<int> compression_params;
+    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+    compression_params.push_back(9);
+    cv::imwrite(filename + ".png", result, compression_params);    
+}
+
+template<class T>
+void colorize(const std::vector<T>& data, const std::string& filename) {
+    for (int i = 0; i < data.size(); i++) {
+        char buffer[100];
+        sprintf(buffer, filename.c_str(), i);
+        colorize(data[i], buffer);
     }
 }
 
@@ -118,7 +201,7 @@ bool goodPoint(const M& im, int x, int y) {
 std::vector<Image> loadImages(const std::string& filename) {
     std::string fname = filename;
     std::vector<Image> frames;
-    for (int frame = 0; frame <= 18; frame++) {
+    for (int frame = 0; frame <= 3; frame++) {
         char buffer[100];
         sprintf(buffer, fname.c_str(), frame);
         frames.push_back(cv::imread(buffer, -1));
@@ -211,103 +294,81 @@ std::vector<Data> convertToDatas(const std::vector<Image>& frames) {
     return dataFrames;
 }
 
-void colorize(const Data& data, const std::string& filename) {
-    static const std::vector<Color> COLORS{
-        {0, 0, 0, 255},
-        {128, 128, 128, 255},
-        {128, 0, 0, 255},
-        {255, 0, 0, 255},
-        {0, 0, 255, 255},
-        {0, 255, 0, 255},
-        {255, 0, 255, 255}
-    };
-    Image im(data.rows, data.cols, TRANSPARENT);
-    for (int y = 0; y < data.rows; y++)
+RichData makeRichData(const Data& data) {
+    static const std::vector<int> dx{-1,1,0,0};
+    static const std::vector<int> dy{0,0,-1,1};
+    
+    std::vector<RichData> dists;
+    for (auto type = TYPE_NO_DATA; type <= TYPE_UNKNOWN; type++) {
+        dists.push_back(RichData::zeros(data.rows, data.cols));
+        auto& dist = dists[type];
+        
+        Data was = Data::zeros(data.rows, data.cols);
+        std::queue<cv::Point_<int>> q;
         for (int x = 0; x < data.cols; x++) {
-            im(y, x) = COLORS[data(y,x)];
+            for (int y = 0; y < data.rows; y++) {
+                dist(y, x) = 1e20;
+                if (data(y, x) == type) {
+                    q.push({x, y});
+                    was(y, x) = 1;
+                    dist(y, x) = 0;
+                }
+            }
         }
-    
-    std::vector<int> compression_params;
-    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-    compression_params.push_back(9);
-    cv::imwrite(filename + ".png", im, compression_params);    
-}
-
-void colorize(const std::vector<Data>& data, const std::string& filename) {
-    for (int i = 0; i < data.size(); i++) {
-        char buffer[100];
-        sprintf(buffer, filename.c_str(), i);
-        colorize(data[i], buffer);
+        while (!q.empty()) {
+            auto cur = q.front();
+            q.pop();
+            for (int i=0; i<4; i++) {
+                int x = cur.x + dx[i];
+                int y = cur.y + dy[i];
+                if (goodPoint(data, x, y) && !was(y, x) /*&& abs(data(y, x) - type)<=1*/) {
+                    was(y, x) = 1;
+                    dist(y, x) = dist(cur.y, cur.x) + 1;
+                    q.push({x, y});
+                }
+            }
+        }
     }
-}
-
-void colorize(const Flow& flow, const std::string& filename) {
-    cv::Mat3f im(flow.rows, flow.cols, cv::Vec3f(0, 0, 0));
-    for (int y = 0; y < flow.rows; y++)
-        for (int x = 0; x < flow.cols; x++) {
-            float vx = flow(y, x)[0];
-            float vy = flow(y, x)[1];
-            float v = sqrt(vx*vx + vy*vy);
-            float dir = atan2(vy, vx);
-            if (dir < 0) dir += 2*M_PI;
-            float h = dir / 2 / M_PI * 360;
-            float val = v * 3e3;
-            if (val > 0.5) std::cout << vx << " " << vy << " " << v << std::endl;
-            im(y, x) = {h, 1, val};
-        }
-    std::cout << im(100, 100) << std::endl;
     
-    cv::Mat4f converted;
-    cv::cvtColor(im, converted, cv::COLOR_HSV2BGR, 4);
-    Image result = converted * 256;
-    //result *= 256;
-    std::cout << result(100, 100) << std::endl;
-    //result = im;
-    std::vector<int> compression_params;
-    compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-    compression_params.push_back(9);
-    cv::imwrite(filename + ".png", result, compression_params);    
+    RichData result = RichData::zeros(data.rows, data.cols);
+    for (int x = 0; x < data.cols; x++) {
+        for (int y = 0; y < data.rows; y++) {
+            int type = data(y, x);
+            if (type == TYPE_NO_DATA || type == TYPE_UNKNOWN) {
+                result(y, x) = type;
+                continue;
+            }
+            float d1 = dists[type - 1](y, x);
+            float d2 = dists[type + 1](y, x);
+            if (d1 > 1e20) d1 = 100;
+            if (d2 > 1e20) d2 = 100;
+            result(y, x) = type + d1 / (d1 + d2);
+        }
+    }
+    return result;
 }
 
 int main(int argc, char* argv[]) {
     
     auto images = loadImages(argv[1]);
     auto datas = convertToDatas(images);
+    std::vector<RichData> richDatas;
+    for (const auto& data: datas)
+        richDatas.push_back(makeRichData(data));
 
     Flow flow;
-    //cv::calcOpticalFlowFarneback(datas[0], datas[1], flow, 0.3, 20, 70, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
-    //cv::calcOpticalFlowSparseToDense(datas[0], datas[1], flow);
-    /*
-    for (int i = 2; i < datas.size(); i++) {
+    cv::calcOpticalFlowFarneback(richDatas[0], richDatas[1], flow, 0.7, 20, 400, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+    for (int i = 2; i < richDatas.size(); i++) {
         Flow flow2;
-        cv::calcOpticalFlowFarneback(datas[i-1], datas[i], flow2, 0.3, 20, 70, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+        cv::calcOpticalFlowFarneback(richDatas[i-1], richDatas[i], flow2, 0.7, 20, 400, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
         flow += flow2;
-    }
-    */
-    
-    std::vector<cv::Point2f> features(1000, {-1, -1});
-    features.resize(1000, {-1, -1});
-    cv::goodFeaturesToTrack(datas[0], features, 1000, 0.01, 30);
-    
-    std::vector<cv::Point2f> features2(1000, {-1, -1});
-    std::vector<uchar> status(1000, 0);
-    std::vector<float> err(1000, 0);
-    cv::calcOpticalFlowPyrLK(datas[0], datas[1], features, features2, status, err);
-
-    for (int i = 0; i < features.size(); i++) {
-        std::cout << features[i] << " " << features2[i] << " " << (int)status[i] << " " << err[i] << std::endl;
-        const auto& f = features[i];
-        if (status[i])
-            datas[0](f.y, f.x) = TYPE_UNKNOWN;
-        else
-            datas[0](f.y, f.x) = TYPE_NO_DATA;
-        //datas[0](f.y+1, f.x) = TYPE_UNKNOWN;
-        //datas[0](f.y, f.x+1) = TYPE_UNKNOWN;
-        //datas[0](f.y+1, f.x+1) = TYPE_UNKNOWN;
     }
         
     colorize(datas, "test%02d");
-    //colorize(flow, "test");
+    colorize(flow, "test");
+    colorize(richDatas, "data%02d");
+    
+    std::cout << flow(337, 124) << std::endl;
     
     return 0;
 }
