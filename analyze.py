@@ -343,6 +343,7 @@ def colorize(fname):
     
 if IS_MAIN:
     #print(analyze(download()[0], NNOV))
-    print(analyze_new(sys.argv[1], NNOV))
+    #print(analyze_new(sys.argv[1], NNOV))
+    download(sys.argv[1])
     #print(colorize(sys.argv[1]))
     

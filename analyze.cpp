@@ -7,6 +7,7 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <cmath>
 
 using Color = cv::Vec4i;
 using Image = cv::Mat_<Color>;
@@ -77,9 +78,9 @@ namespace color_detector {
         if (is_hail_color(color))
             return TYPE_HAIL;
         else if (is_storm_color(color))
-            return TYPE_RAIN; //TYPE_STORM;
+            return TYPE_STORM;
         else if (is_rain_color(color))
-            return TYPE_CLOUD; //TYPE_RAIN;
+            return TYPE_RAIN;
         else if (is_cloud_color(color))
             return TYPE_CLOUD;
         else if (is_none_color(color))
@@ -87,7 +88,7 @@ namespace color_detector {
         else if (is_no_data_color(color))
             return TYPE_NO_DATA;
         else
-            return TYPE_CLOUD; //TYPE_UNKNOWN;
+            return TYPE_UNKNOWN;
     }
 }
 
@@ -114,21 +115,12 @@ void colorize(const Data& data, const std::string& filename) {
 }
 
 void colorize(const RichData& data, const std::string& filename) {
-    static const std::vector<Color> COLORS{
-        {0, 0, 0, 255},
-        {128, 128, 128, 255},
-        {128, 0, 0, 255},
-        {255, 0, 0, 255},
-        {0, 0, 255, 255},
-        {0, 255, 0, 255},
-        {255, 0, 255, 255}
-    };
     Image im(data.rows, data.cols, TRANSPARENT);
+    double max, min;
+    cv::minMaxLoc(data, &min, &max);
     for (int y = 0; y < data.rows; y++)
         for (int x = 0; x < data.cols; x++) {
-            int base = int(data(y, x));
-            float frac = data(y, x) - base;
-            im(y, x) = COLORS[base] + frac * (COLORS[base+1] - COLORS[base]);
+            im(y, x) = {(data(y, x) - min)/(max-min)*256, 0, 0, 255};
         }
     
     std::vector<int> compression_params;
@@ -147,18 +139,15 @@ void colorize(const Flow& flow, const std::string& filename) {
             float dir = atan2(vy, vx);
             if (dir < 0) dir += 2*M_PI;
             float h = dir / 2 / M_PI * 360;
-            float val = (log10(v + 1e-10) + 10) / 10;
+            float val = (log10(v + 1e-25) + 25) / 10;
             //if (val > 0.5) std::cout << vx << " " << vy << " " << v << std::endl;
             im(y, x) = {h, 1, val};
         }
-    //std::cout << im(100, 100) << std::endl;
     
     cv::Mat4f converted;
     cv::cvtColor(im, converted, cv::COLOR_HSV2BGR, 4);
     Image result = converted * 256;
-    //result *= 256;
-    //std::cout << result(100, 100) << std::endl;
-    //result = im;
+
     std::vector<int> compression_params;
     compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
     compression_params.push_back(9);
@@ -176,8 +165,6 @@ void colorize(const std::vector<T>& data, const std::string& filename) {
 
 bool isFixedColor(const std::vector<Image>& frames, int x, int y) {
     auto col = frames[0](y, x);
-    //if (color_detector::is_none_color(col))
-        //return false;
     for (const auto& frame: frames) {
         if (frame(y, x) != col)
             return false;
@@ -201,7 +188,7 @@ bool goodPoint(const M& im, int x, int y) {
 std::vector<Image> loadImages(const std::string& filename) {
     std::string fname = filename;
     std::vector<Image> frames;
-    for (int frame = 0; frame <= 3; frame++) {
+    for (int frame = 0; frame <= 9; frame++) {
         char buffer[100];
         sprintf(buffer, fname.c_str(), frame);
         frames.push_back(cv::imread(buffer, -1));
@@ -216,9 +203,6 @@ std::vector<Data> convertToDatas(const std::vector<Image>& frames) {
             fixeds(y, x) = isFixedColor(frames, x, y);
         }
     }
-    
-    //colorize(fixeds);
-    //return 0;
     
     auto dd = makeDd(2);
     
@@ -295,56 +279,40 @@ std::vector<Data> convertToDatas(const std::vector<Image>& frames) {
 }
 
 RichData makeRichData(const Data& data) {
-    static const std::vector<int> dx{-1,1,0,0};
-    static const std::vector<int> dy{0,0,-1,1};
-    
-    std::vector<RichData> dists;
-    for (auto type = TYPE_NO_DATA; type <= TYPE_UNKNOWN; type++) {
-        dists.push_back(RichData::zeros(data.rows, data.cols));
-        auto& dist = dists[type];
-        
-        Data was = Data::zeros(data.rows, data.cols);
-        std::queue<cv::Point_<int>> q;
-        for (int x = 0; x < data.cols; x++) {
-            for (int y = 0; y < data.rows; y++) {
-                dist(y, x) = 1e20;
-                if (data(y, x) == type) {
-                    q.push({x, y});
-                    was(y, x) = 1;
-                    dist(y, x) = 0;
-                }
-            }
-        }
-        while (!q.empty()) {
-            auto cur = q.front();
-            q.pop();
-            for (int i=0; i<4; i++) {
-                int x = cur.x + dx[i];
-                int y = cur.y + dy[i];
-                if (goodPoint(data, x, y) && !was(y, x) /*&& abs(data(y, x) - type)<=1*/) {
-                    was(y, x) = 1;
-                    dist(y, x) = dist(cur.y, cur.x) + 1;
-                    q.push({x, y});
-                }
+    cv::Mat padded;
+    int m = 2 * cv::getOptimalDFTSize( data.rows );
+    int n = 2 * cv::getOptimalDFTSize( data.cols ); 
+    cv::copyMakeBorder(data, padded, 0, m - data.rows, 0, n - data.cols, cv::BORDER_CONSTANT, cv::Scalar::all(TYPE_NONE));
+
+    cv::Mat planes[] = {cv::Mat_<float>(padded), cv::Mat::zeros(padded.size(), CV_32F)};
+    cv::Mat complexI;
+    cv::merge(planes, 2, complexI);
+
+    cv::dft(complexI, complexI);
+
+    for (int x = 0; x < complexI.cols; x++) {
+        for (int y = 0; y < complexI.rows; y++) {
+            if (x == 0 && y == 0) {
+                complexI.at<cv::Vec2f>(y, x) = 0;
+            } else {
+                double dx = std::min(x, complexI.cols - x);
+                double dy = std::min(y, complexI.rows - y);
+                complexI.at<cv::Vec2f>(y, x) = complexI.at<cv::Vec2f>(y, x) / std::pow(std::hypot(dx, dy), 1);
             }
         }
     }
+
+    cv::dft(complexI, complexI, cv::DFT_INVERSE + cv::DFT_SCALE);
     
-    RichData result = RichData::zeros(data.rows, data.cols);
-    for (int x = 0; x < data.cols; x++) {
-        for (int y = 0; y < data.rows; y++) {
-            int type = data(y, x);
-            if (type == TYPE_NO_DATA || type == TYPE_UNKNOWN) {
-                result(y, x) = type;
-                continue;
-            }
-            float d1 = dists[type - 1](y, x);
-            float d2 = dists[type + 1](y, x);
-            if (d1 > 1e20) d1 = 100;
-            if (d2 > 1e20) d2 = 100;
-            result(y, x) = type + d1 / (d1 + d2);
-        }
-    }
+    split(complexI, planes);
+    
+    std::cout << planes[0].at<float>(0, 0) << " " << planes[1].at<float>(0, 0) << std::endl;
+
+    cv::Rect roi(0, 0, data.cols, data.rows);
+    RichData result;
+    cv::Mat cropped(planes[0], roi);
+    cropped.copyTo(result);    
+
     return result;
 }
 
@@ -357,18 +325,20 @@ int main(int argc, char* argv[]) {
         richDatas.push_back(makeRichData(data));
 
     Flow flow;
-    cv::calcOpticalFlowFarneback(richDatas[0], richDatas[1], flow, 0.7, 20, 400, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+    
+    cv::calcOpticalFlowFarneback(richDatas[0], richDatas[1], flow, 0.5, 8, 300, 2, 5, 1.3, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+
     for (int i = 2; i < richDatas.size(); i++) {
         Flow flow2;
-        cv::calcOpticalFlowFarneback(richDatas[i-1], richDatas[i], flow2, 0.7, 20, 400, 2, 7, 1.7, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
+        cv::calcOpticalFlowFarneback(richDatas[i-1], richDatas[i], flow2, 0.5, 8, 300, 2, 5, 1.3, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
         flow += flow2;
     }
         
-    colorize(datas, "test%02d");
+    colorize(datas, "data%02d");
     colorize(flow, "test");
-    colorize(richDatas, "data%02d");
+    colorize(richDatas, "rdata%02d");
     
-    std::cout << flow(337, 124) << std::endl;
+    std::cout << flow(612, 448) << std::endl;
     
     return 0;
 }
