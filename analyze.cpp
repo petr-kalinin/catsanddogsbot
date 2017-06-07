@@ -333,12 +333,19 @@ int main(int argc, char* argv[]) {
         cv::calcOpticalFlowFarneback(richDatas[i-1], richDatas[i], flow2, 0.5, 8, 300, 2, 5, 1.3, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
         flow += flow2;
     }
+    
+    for (auto& data: datas) {
+        data(448, 612) = TYPE_UNKNOWN;
+        data(449, 612) = TYPE_UNKNOWN;
+        data(448, 613) = TYPE_UNKNOWN;
+        data(449, 613) = TYPE_UNKNOWN;
+    }
         
     colorize(datas, "data%02d");
     colorize(flow, "test");
     colorize(richDatas, "rdata%02d");
     
-    std::cout << flow(612, 448) << std::endl;
+    std::cout << flow(448, 612) << std::endl;
     
     return 0;
 }
