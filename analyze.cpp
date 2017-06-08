@@ -8,6 +8,9 @@
 #include <vector>
 #include <queue>
 #include <cmath>
+#include <set>
+
+#include <boost/optional/optional.hpp>
 
 using Color = cv::Vec4i;
 using Image = cv::Mat_<Color>;
@@ -188,7 +191,7 @@ bool goodPoint(const M& im, int x, int y) {
 std::vector<Image> loadImages(const std::string& filename) {
     std::string fname = filename;
     std::vector<Image> frames;
-    for (int frame = 0; frame <= 9; frame++) {
+    for (int frame = 9; frame <= 17; frame++) {
         char buffer[100];
         sprintf(buffer, fname.c_str(), frame);
         frames.push_back(cv::imread(buffer, -1));
@@ -306,7 +309,7 @@ RichData makeRichData(const Data& data) {
     
     split(complexI, planes);
     
-    std::cout << planes[0].at<float>(0, 0) << " " << planes[1].at<float>(0, 0) << std::endl;
+    //std::cout << planes[0].at<float>(0, 0) << " " << planes[1].at<float>(0, 0) << std::endl;
 
     cv::Rect roi(0, 0, data.cols, data.rows);
     RichData result;
@@ -314,6 +317,54 @@ RichData makeRichData(const Data& data) {
     cropped.copyTo(result);    
 
     return result;
+}
+
+Data makeSlice(Data& data, int x0, int y0, cv::Vec2f dir) 
+{
+    float angle = std::atan2(dir[1], dir[0]);
+    
+    Data result = Data::zeros(1, 100);
+
+    for (int d = 0; d < 100; d++) {
+        for (double da = -0.1; da < 0.1 + 1e-5; da += 0.01) {
+            double aa = angle + da;
+            int xx = x0 - d * cos(aa);
+            int yy = y0 - d * sin(aa);
+            std::cout << "Test " << xx << " " << yy << std::endl;
+            if (data(yy, xx) > result(0, d))
+                result(0, d) = data(yy, xx);
+        }
+        std::cout << "-" << std::endl;
+    }
+    std::cout << "-----" << std::endl;
+
+    for (int d = 0; d < 100; d++) {
+        for (double da = -0.1; da < 0.1 + 1e-5; da += 0.01) {
+            double aa = angle + da;
+            int xx = x0 - d * cos(aa);
+            int yy = y0 - d * sin(aa);
+            data(yy, xx) = TYPE_UNKNOWN;
+        }
+        std::cout << "-" << std::endl;
+    }
+    return result;
+}
+
+boost::optional<float> calcVelocity(const Data& slice1, const Data& slice2) {
+    const int SHIFT = 20;
+    cv::Rect roi(SHIFT, 0, slice1.cols - SHIFT, 1);
+    cv::Mat cropped(slice1, roi);
+    cv::Mat result;
+    cv::matchTemplate(cropped, slice2, result, CV_TM_SQDIFF);
+    double min, max;
+    cv::Point minX;
+    cv::minMaxLoc(result, &min, &max, &minX);
+
+    for (int x = 0; x < result.cols; x++) std::cout << result.at<float>(0, x) << " ";
+    std::cout << "| " << min << " " << max << "  " << minX << std::endl;
+    if (min > cropped.cols / 2 || max < 2 * min)
+        return boost::none;
+    return SHIFT - minX.x;
 }
 
 int main(int argc, char* argv[]) {
@@ -334,18 +385,49 @@ int main(int argc, char* argv[]) {
         flow += flow2;
     }
     
+    auto dir = flow(448, 612);
+    
+    std::vector<Data> slices;
     for (auto& data: datas) {
-        data(448, 612) = TYPE_UNKNOWN;
-        data(449, 612) = TYPE_UNKNOWN;
-        data(448, 613) = TYPE_UNKNOWN;
-        data(449, 613) = TYPE_UNKNOWN;
+        slices.push_back(makeSlice(data, 612, 448, dir));
     }
-        
+    
+    std::cout << "Slices: " << std::endl;
+    for (const auto& slice: slices) {
+        std::cout << slice.cols << ": ";
+        for (int x = 0; x < slice.cols; x++) std::cout << (int)slice(0, x) << " ";
+        std::cout << std::endl;
+    }
+
+    double v = 0;
+    int nv = 0;
+    std::set<int> goodFrames;
+    for (int i = 0; i < slices.size(); i++) {
+        for (int j = i + 1; j < slices.size(); j++) {
+            boost::optional<float> thisV = calcVelocity(slices[i], slices[j]);
+            if (thisV) {
+                v += *thisV / (j - i);
+                nv++;
+                std::cout << "v for " << i << " " << j << " " << *thisV << std::endl;
+                goodFrames.insert(i);
+                goodFrames.insert(j);
+            } else {
+                std::cout << "v for " << i << " " << j << " --" << std::endl;
+            }
+        }
+    }
+    
     colorize(datas, "data%02d");
     colorize(flow, "test");
     colorize(richDatas, "rdata%02d");
+
+    if (nv < 5) {
+        return 0;
+    }
     
-    std::cout << flow(448, 612) << std::endl;
+    v = v / nv;
+    
+std::cout << "Detected v= " << v << std::endl;
     
     return 0;
 }
