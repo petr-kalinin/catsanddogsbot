@@ -359,8 +359,10 @@ boost::optional<float> calcVelocity(const Data& slice1, const Data& slice2) {
     double min, max;
     cv::Point minX;
     cv::minMaxLoc(result, &min, &max, &minX);
+    
+    //std::cout << min << " " << max << " " << minX << std::endl;
 
-    if (min > cropped.cols / 2 || max < 2 * min)
+    if (min > cropped.cols / 2 || max <= 1.9 * min + 10)
         return boost::none;
     return SHIFT - minX.x;
 }

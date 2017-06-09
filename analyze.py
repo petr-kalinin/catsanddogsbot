@@ -9,6 +9,8 @@ import numpy
 import math
 import hashlib
 import sys
+import subprocess
+import os.path
 
 IS_MAIN = __name__ == '__main__'
 
@@ -158,28 +160,16 @@ def convert(im):
 
 
 def analyze_new(fname, center=NNOV):
-    TYPES = ((TYPE_RAIN, is_rain_color),
-             (TYPE_STORM, is_storm_color),
-             (TYPE_HAIL, is_hail_color))
-    
-    im = load_image(fname)
-    data = convert(im)
-    
-    colorize_new(data)
-
-
-def colorize_new(data):
-    COLORS = {TYPE_NONE: (0, 0, 0), 
-              TYPE_RAIN: (0, 0, 256),
-              TYPE_STORM: (256, 0, 0),
-              TYPE_HAIL: (0, 256, 0)}
-    result = Image.new("RGB", (data[-1].shape[1], data[-1].shape[0]))
-    #print(im[0].shape)
-    for x in range(data[-1].shape[1]):
-        print(x)
-        for y in range(data[-1].shape[0]):
-            result.putpixel((x, y), COLORS[data[-1][y][x]])
-    result.save("test.png")
+    os.system("./process.sh " + fname)
+    if os.path.isfile("result.txt"):
+        with open("result.txt") as f:
+            line = f.read()
+            typ, start, end = map(float, line.split())
+            typ = int(typ) - 2
+            if typ < 0:
+                return None
+            return Status(start, end, typ)
+    return None
 
 
 #----- old way
@@ -342,8 +332,7 @@ def colorize(fname):
     
     
 if IS_MAIN:
-    #print(analyze(download()[0], NNOV))
-    #print(analyze_new(sys.argv[1], NNOV))
-    download(sys.argv[1])
+    print(analyze_new(sys.argv[1], NNOV))
+    #download(sys.argv[1])
     #print(colorize(sys.argv[1]))
     
