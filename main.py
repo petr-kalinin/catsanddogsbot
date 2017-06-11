@@ -13,7 +13,7 @@ import traceback
 import pdb
 
 import db as db_module
-from analyze import analyze, download, Status, MAX_START, CouldNotLoadError
+from analyze import analyze_new, download, Status, MAX_START, CouldNotLoadError
 
 TOKEN = sys.argv[1]
 SOURCE_URL = sys.argv[2]
@@ -129,7 +129,7 @@ def update_forecast():
         return
     print("Detected new file!")
     
-    new_status = analyze(new_file)
+    new_status = analyze_new(new_file)
     print("New status: ", new_status)
 
     now = now_min()

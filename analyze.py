@@ -168,6 +168,8 @@ def analyze_new(fname, center=NNOV):
             typ = int(typ) - 2
             if typ < 0:
                 return None
+            if start > MAX_START:
+                return None
             return Status(start, end, typ)
     return None
 
