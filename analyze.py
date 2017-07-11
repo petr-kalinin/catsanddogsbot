@@ -38,7 +38,7 @@ FRAMES_OFFSET = 6  # how many cloned frames at gif end
 FRAMES_CONSIDER = 9
 
 MAX_TIME = 100*PERIOD
-MAX_START = 1.5 * 60
+MAX_START = 60
 MIN_LENGTH = 3
 
 Range = namedtuple('Range', 'start end')

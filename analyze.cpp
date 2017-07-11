@@ -38,14 +38,15 @@ namespace color_detector {
         int r = color[2];
         int g = color[1];
         int b = color[0];
-        return b > 0.8*g && g > 0.4*b && b > 3*r;
+        return (b > 0.8*g && g > 0.4*b && b > 3*r)
+            || (b > 3*g && b > 3*r && b >= 170);  // light blue
     }
     
     bool is_rain_color(const Color& color) {
         int r = color[2];
         int g = color[1];
         int b = color[0];
-        return b > 3*g && b > 3*r;
+        return b > 3*g && b > 3*r && b < 170;
     }
 
 
@@ -325,12 +326,13 @@ RichData makeRichData(const Data& data) {
 
 Data makeSlice(Data& data, int x0, int y0, cv::Vec2f dir) 
 {
+    const double ANGLE_RANGE = 0.05;
     float angle = std::atan2(dir[1], dir[0]);
     
     Data result = Data::zeros(1, 100);
 
     for (int d = 0; d < 100; d++) {
-        for (double da = -0.1; da < 0.1 + 1e-5; da += 0.01) {
+        for (double da = -ANGLE_RANGE; da < ANGLE_RANGE + 1e-5; da += 0.01) {
             double aa = angle + da;
             int xx = x0 - d * cos(aa);
             int yy = y0 - d * sin(aa);
@@ -340,7 +342,7 @@ Data makeSlice(Data& data, int x0, int y0, cv::Vec2f dir)
     }
 
     for (int d = 0; d < 100; d++) {
-        for (double da = -0.1; da < 0.1 + 1e-5; da += 0.01) {
+        for (double da = -ANGLE_RANGE; da < ANGLE_RANGE + 1e-5; da += 0.01) {
             double aa = angle + da;
             int xx = x0 - d * cos(aa);
             int yy = y0 - d * sin(aa);
@@ -388,8 +390,9 @@ int main(int argc, char* argv[]) {
     auto dir = flow(448, 612);
     
     std::vector<Data> slices;
-    for (auto& data: datas) {
-        slices.push_back(makeSlice(data, 612, 448, dir));
+    for (int i = datas.size() - 4; i < datas.size(); i++) {
+        std::cout << "Making slice " << i << std::endl;
+        slices.push_back(makeSlice(datas[i], 612, 448, dir));
     }
     
     double v = 0;
@@ -414,7 +417,7 @@ int main(int argc, char* argv[]) {
     colorize(flow, "test");
     colorize(richDatas, "rdata%02d");
 
-    if (nv < 5) {
+    if (nv < 2) {
         return 0;
     }
     
