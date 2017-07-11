@@ -160,17 +160,20 @@ def convert(im):
 
 
 def analyze_new(fname, center=NNOV):
-    os.system("./process.sh " + fname)
-    if os.path.isfile("result.txt"):
-        with open("result.txt") as f:
-            line = f.read()
-            typ, start, end = map(float, line.split())
-            typ = int(typ) - 2
-            if typ < 0:
-                return None
-            if start > MAX_START:
-                return None
-            return Status(start, end, typ)
+    try:
+        os.system("./process.sh " + fname)
+        if os.path.isfile("result.txt"):
+            with open("result.txt") as f:
+                line = f.read()
+                typ, start, end = map(float, line.split())
+                typ = int(typ) - 2
+                if typ < 0:
+                    return None
+                if start > MAX_START:
+                    return None
+                return Status(start, end, typ)
+    except:
+        pass
     return None
 
 
