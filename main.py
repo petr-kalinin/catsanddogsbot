@@ -111,7 +111,11 @@ def send_all(status):
     user = "@catsanddogs_nnov"
     status_text = format_status(status)
     try:
-        bot.sendMessage(user, status_text)
+        print("Sending message ", status_text)
+        if bot:
+            bot.sendMessage(user, status_text)
+        else:
+            print("Working in dry-run mode")
     except:
         pass
 
@@ -144,10 +148,12 @@ def update_forecast():
     send_all(new_status)
     
             
-bot = telepot.Bot(TOKEN)
-
-MessageLoop(bot, handle).run_as_thread()
-print ('Listening ...')
+if TOKEN != "_":
+    bot = telepot.Bot(TOKEN)
+    MessageLoop(bot, handle).run_as_thread()
+    print ('Listening ...')
+else:
+    bot = None
 
 while 1:
     print("Trying to download")

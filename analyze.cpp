@@ -371,13 +371,15 @@ boost::optional<float> calcVelocity(const Data& slice1, const Data& slice2) {
 }
 
 int main(int argc, char* argv[]) {
-    
+    std::cout << "Start loading images" << std::endl;
     auto images = loadImages(argv[1]);
     auto datas = convertToDatas(images);
     std::vector<RichData> richDatas;
+    std::cout << "Start enriching data" << std::endl;
     for (const auto& data: datas)
         richDatas.push_back(makeRichData(data));
 
+    std::cout << "Start calculate flow" << std::endl;
     Flow flow;
     
     cv::calcOpticalFlowFarneback(richDatas[0], richDatas[1], flow, 0.5, 8, 300, 2, 5, 1.3, cv::OPTFLOW_FARNEBACK_GAUSSIAN);
@@ -388,6 +390,7 @@ int main(int argc, char* argv[]) {
         flow += flow2;
     }
     
+    std::cout << "Start processing NNov" << std::endl;
     auto dir = flow(448, 612);
     
     std::vector<Data> slices;
@@ -439,9 +442,9 @@ int main(int argc, char* argv[]) {
     for (const auto& f: goodFrames) {
         const auto& slice = slices[f];
         int shift = v * (slices.size() - f - 0.5);
-        int delta = (f / 3.0) + 1;
-        double w = sqrt(1.0 * f / slices.size()) / delta;
-        std::cout << "Consider frame " << f << " shift " << shift << " w=" << w << std::endl;
+        int delta = ((slices.size() - f) / 2.0) + 1;
+        double w = sqrt(1.0 * (f + 1) / slices.size()) / delta;
+        std::cout << "Consider frame " << f << " shift " << shift << " w=" << w << " w*delta=" << w*delta << std::endl;
         for (int x = 0; x < slice.cols; x++) {
             for (int d = -delta; d <= delta; d++) {
                 int t = x + shift + d;
@@ -460,7 +463,7 @@ int main(int argc, char* argv[]) {
         } else {
             finalResult(0, x) = TYPE_NONE;
        }
-        std::cout << (int)finalResult(0, x) << "  ";
+        std::cout << (int)finalResult(0, x) << " ";
     }
     std::cout << std::endl;
     

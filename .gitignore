@@ -3,6 +3,7 @@ t
 *.png
 *.gif
 main.sh
+main_dry.sh
 __pycache__
 data
 analyze
