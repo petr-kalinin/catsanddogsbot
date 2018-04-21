@@ -1,1 +1,1 @@
-g++ -O3 -g --std=c++14 analyze.cpp -lopencv_highgui -lopencv_core -lopencv_video -lopencv_imgproc -o analyze
+g++ -O3 -g --std=c++14 analyze.cpp -lopencv_highgui -lopencv_core -lopencv_video -lopencv_imgproc -lopencv_imgcodecs -o analyze
