@@ -5,6 +5,7 @@
 
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <queue>
 #include <cmath>
@@ -423,7 +424,6 @@ int main(int argc, char* argv[]) {
     
     v = v / nv;
 
-    /*
     std::cout << "Slices: " << std::endl;
     for (const auto& f: goodFrames) {
         const auto& slice = slices[f];
@@ -431,9 +431,8 @@ int main(int argc, char* argv[]) {
         for (int x = 0; x < slice.cols; x++) std::cout << (int)slice(0, x) << " ";
         std::cout << std::endl;
     }
-    */
     
-    //std::cout << "Detected v= " << v << std::endl;
+    std::cout << "Detected v= " << v << std::endl;
     
     RichData result = RichData::zeros(slices[0].rows, slices[0].cols);
     RichData resultN = RichData::zeros(slices[0].rows, slices[0].cols);
@@ -442,7 +441,7 @@ int main(int argc, char* argv[]) {
         int shift = v * (slices.size() - f - 0.5);
         int delta = (f / 3.0) + 1;
         double w = sqrt(1.0 * f / slices.size()) / delta;
-        //std::cout << "Consider frame " << f << " shift " << shift << " w=" << w << std::endl;
+        std::cout << "Consider frame " << f << " shift " << shift << " w=" << w << std::endl;
         for (int x = 0; x < slice.cols; x++) {
             for (int d = -delta; d <= delta; d++) {
                 int t = x + shift + d;
@@ -461,9 +460,9 @@ int main(int argc, char* argv[]) {
         } else {
             finalResult(0, x) = TYPE_NONE;
        }
-        //std::cout << (int)finalResult(0, x) << "  ";
+        std::cout << (int)finalResult(0, x) << "  ";
     }
-    //std::cout << std::endl;
+    std::cout << std::endl;
     
     double start = 1e20;
     double end = 1e20;
@@ -484,6 +483,8 @@ int main(int argc, char* argv[]) {
         }
     }
     
+    std::ofstream f("result.txt");
+    f << type << " " << start*PERIOD << " " << end*PERIOD << std::endl;
     std::cout << type << " " << start*PERIOD << " " << end*PERIOD << std::endl;
     
     return 0;
