@@ -10,6 +10,7 @@
 #include <queue>
 #include <cmath>
 #include <set>
+#include <map>
 
 #include <boost/optional/optional.hpp>
 
@@ -32,6 +33,12 @@ const int TYPE_UNKNOWN = 6;
 const double MERGE_THRESHOLD = 7;
 
 const double PERIOD = 10;
+
+std::map<std::string, std::pair<int, int>> POINTS {
+    {"nnov", {448, 612}},
+    {"msk", {451, 462}},
+    {"spb", {244, 344}},
+    {"sis", {374, 568}}};
 
 namespace color_detector {
     
@@ -390,105 +397,111 @@ int main(int argc, char* argv[]) {
         flow += flow2;
     }
     
-    std::cout << "Start processing NNov" << std::endl;
-    auto dir = flow(448, 612);
-    
-    std::vector<Data> slices;
-    for (int i = datas.size() - 4; i < datas.size(); i++) {
-        std::cout << "Making slice " << i << std::endl;
-        slices.push_back(makeSlice(datas[i], 612, 448, dir));
-    }
-    
-    double v = 0;
-    int nv = 0;
-    std::set<int> goodFrames;
-    for (int i = 0; i < slices.size(); i++) {
-        for (int j = i + 1; j < slices.size(); j++) {
-            boost::optional<float> thisV = calcVelocity(slices[i], slices[j]);
-            if (thisV) {
-                v += *thisV / (j - i);
-                nv++;
-                //std::cout << "v for " << i << " " << j << " " << *thisV << std::endl;
-                goodFrames.insert(i);
-                goodFrames.insert(j);
-            } else {
-                //std::cout << "v for " << i << " " << j << " --" << std::endl;
-            }
-        }
-    }
-    
-    colorize(datas, "data%02d");
-    colorize(flow, "test");
-    colorize(richDatas, "rdata%02d");
-
-    if (nv < 2) {
-        return 0;
-    }
-    
-    v = v / nv;
-
-    std::cout << "Slices: " << std::endl;
-    for (const auto& f: goodFrames) {
-        const auto& slice = slices[f];
-        std::cout << f << ": ";
-        for (int x = 0; x < slice.cols; x++) std::cout << (int)slice(0, x) << " ";
-        std::cout << std::endl;
-    }
-    
-    std::cout << "Detected v= " << v << std::endl;
-    
-    RichData result = RichData::zeros(slices[0].rows, slices[0].cols);
-    RichData resultN = RichData::zeros(slices[0].rows, slices[0].cols);
-    for (const auto& f: goodFrames) {
-        const auto& slice = slices[f];
-        int shift = v * (slices.size() - f - 0.5);
-        int delta = ((slices.size() - f) / 2.0) + 1;
-        double w = sqrt(1.0 * (f + 1) / slices.size()) / delta;
-        std::cout << "Consider frame " << f << " shift " << shift << " w=" << w << " w*delta=" << w*delta << std::endl;
-        for (int x = 0; x < slice.cols; x++) {
-            for (int d = -delta; d <= delta; d++) {
-                int t = x + shift + d;
-                if (t < 0 || t >= slice.cols) continue;
-                result(0, x) += slice(0, t) * w;
-                resultN(0, x) += w;
-            }
-        }
-    }
-    
-    Data finalResult = Data::zeros(result.rows, result.cols);
-    for (int x = 0; x < result.cols; x++) {
-        if (resultN(0, x) > 1) {
-            result(0, x) /= resultN(0, x);
-            finalResult(0, x) = std::lround(result(0, x) + 0.2);  // make 1.3 round to 2
-        } else {
-            finalResult(0, x) = TYPE_NONE;
-       }
-        std::cout << (int)finalResult(0, x) << " ";
-    }
-    std::cout << std::endl;
-    
-    double start = 1e20;
-    double end = 1e20;
-    int type = TYPE_NONE;
-    for (int x = 0; x < result.cols; x++) {
-        double time = x / v;
-        if (time - end > MERGE_THRESHOLD) break;
-        if (finalResult(0, x) > TYPE_CLOUD) {
-            if (finalResult(0, x) > type) 
-                type = finalResult(0, x);
-            if (time < start) { 
-                start = time; 
-                end = time; 
-            }
-            if (time > end) 
-                end = time;
-                
-        }
-    }
-    
     std::ofstream f("result.txt");
-    f << type << " " << start*PERIOD << " " << end*PERIOD << std::endl;
-    std::cout << type << " " << start*PERIOD << " " << end*PERIOD << std::endl;
-    
+    for (const auto& point: POINTS) {
+        std::string name = point.first;
+        std::cout << "Start processing " << name << std::endl;
+        int x = point.second.second;
+        int y = point.second.first;
+        auto dir = flow(y, x);
+        
+        std::vector<Data> slices;
+        for (int i = datas.size() - 4; i < datas.size(); i++) {
+            std::cout << "Making slice " << i << std::endl;
+            slices.push_back(makeSlice(datas[i], x, y, dir));
+        }
+        
+        double v = 0;
+        int nv = 0;
+        std::set<int> goodFrames;
+        for (int i = 0; i < slices.size(); i++) {
+            for (int j = i + 1; j < slices.size(); j++) {
+                boost::optional<float> thisV = calcVelocity(slices[i], slices[j]);
+                if (thisV) {
+                    v += *thisV / (j - i);
+                    nv++;
+                    //std::cout << "v for " << i << " " << j << " " << *thisV << std::endl;
+                    goodFrames.insert(i);
+                    goodFrames.insert(j);
+                } else {
+                    //std::cout << "v for " << i << " " << j << " --" << std::endl;
+                }
+            }
+        }
+        
+        colorize(datas, name + "_data%02d");
+        colorize(flow, name + "_test");
+        colorize(richDatas, name + "_rdata%02d");
+
+        if (nv < 2) {
+            f << name << " 0 0 0" << std::endl;
+            std::cout << name << " 0 0 0" << std::endl;
+            continue;
+        }
+        
+        v = v / nv;
+
+        std::cout << "Slices: " << std::endl;
+        for (const auto& f: goodFrames) {
+            const auto& slice = slices[f];
+            std::cout << f << ": ";
+            for (int x = 0; x < slice.cols; x++) std::cout << (int)slice(0, x) << " ";
+            std::cout << std::endl;
+        }
+        
+        std::cout << "Detected v= " << v << std::endl;
+        
+        RichData result = RichData::zeros(slices[0].rows, slices[0].cols);
+        RichData resultN = RichData::zeros(slices[0].rows, slices[0].cols);
+        for (const auto& f: goodFrames) {
+            const auto& slice = slices[f];
+            int shift = v * (slices.size() - f - 0.5);
+            int delta = ((slices.size() - f) / 2.0) + 1;
+            double w = sqrt(1.0 * (f + 1) / slices.size()) / delta;
+            std::cout << "Consider frame " << f << " shift " << shift << " w=" << w << " w*delta=" << w*delta << std::endl;
+            for (int x = 0; x < slice.cols; x++) {
+                for (int d = -delta; d <= delta; d++) {
+                    int t = x + shift + d;
+                    if (t < 0 || t >= slice.cols) continue;
+                    result(0, x) += slice(0, t) * w;
+                    resultN(0, x) += w;
+                }
+            }
+        }
+        
+        Data finalResult = Data::zeros(result.rows, result.cols);
+        for (int x = 0; x < result.cols; x++) {
+            if (resultN(0, x) > 1) {
+                result(0, x) /= resultN(0, x);
+                finalResult(0, x) = std::lround(result(0, x) + 0.2);  // make 1.3 round to 2
+            } else {
+                finalResult(0, x) = TYPE_NONE;
+        }
+            std::cout << (int)finalResult(0, x) << " ";
+        }
+        std::cout << std::endl;
+        
+        double start = 1e20;
+        double end = 1e20;
+        int type = TYPE_NONE;
+        for (int x = 0; x < result.cols; x++) {
+            double time = x / v;
+            if (time - end > MERGE_THRESHOLD) break;
+            if (finalResult(0, x) > TYPE_CLOUD) {
+                if (finalResult(0, x) > type) 
+                    type = finalResult(0, x);
+                if (time < start) { 
+                    start = time; 
+                    end = time; 
+                }
+                if (time > end) 
+                    end = time;
+                    
+            }
+        }
+        
+        f << name << " " << type << " " << start*PERIOD << " " << end*PERIOD << std::endl;
+        std::cout << name << " " << type << " " << start*PERIOD << " " << end*PERIOD << std::endl;
+    }
     return 0;
 }
