@@ -35,10 +35,21 @@ const double MERGE_THRESHOLD = 7;
 const double PERIOD = 10;
 
 std::map<std::string, std::pair<int, int>> POINTS {
-    {"nnov", {448, 612}},
-    {"msk", {451, 462}},
-    {"spb", {244, 344}},
-    {"sis", {374, 568}}};
+    {"nnov:center", {448, 612}},
+    {"nnov:avtozavod", {450, 607}},
+    {"nnov:sormovo", {445, 608}},
+    {"msk:center", {452, 462}},
+    {"msk:north", {446, 462}},
+    {"msk:south", {458, 462}},
+    {"msk:west", {452, 457}},
+    {"msk:east", {452, 466}},
+    {"spb:center", {244, 344}},
+    {"spb:north", {236, 344}},
+    {"spb:south", {249, 344}},
+    {"spb:east", {244, 347}},
+    {"sis:", {374, 568}}
+    
+};
 
 namespace color_detector {
     
@@ -397,6 +408,9 @@ int main(int argc, char* argv[]) {
         flow += flow2;
     }
     
+    colorize(flow, "flow");
+    colorize(richDatas, "richData%02d");
+    
     std::ofstream f("result.txt");
     for (const auto& point: POINTS) {
         std::string name = point.first;
@@ -404,13 +418,20 @@ int main(int argc, char* argv[]) {
         int x = point.second.second;
         int y = point.second.first;
         auto dir = flow(y, x);
-        
+
+        std::vector<Data> thisDatas(datas.size());
+        for (int i = 0; i < datas.size(); i++) {
+            datas[i].copyTo(thisDatas[i]);
+        }
         std::vector<Data> slices;
-        for (int i = datas.size() - 4; i < datas.size(); i++) {
+        for (int i = thisDatas.size() - 4; i < thisDatas.size(); i++) {
             std::cout << "Making slice " << i << std::endl;
-            slices.push_back(makeSlice(datas[i], x, y, dir));
+            slices.push_back(makeSlice(thisDatas[i], x, y, dir));
         }
         
+       
+        colorize(thisDatas, name + "_data%02d");
+
         double v = 0;
         int nv = 0;
         std::set<int> goodFrames;
@@ -428,10 +449,6 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        
-        colorize(datas, name + "_data%02d");
-        colorize(flow, name + "_test");
-        colorize(richDatas, name + "_rdata%02d");
 
         if (nv < 2) {
             f << name << " 0 0 0" << std::endl;

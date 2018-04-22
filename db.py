@@ -20,16 +20,16 @@ class Db(object):
     
     def getStatus(self):
         status = self._getValue("status")
-        if status is None or len(status) == 0:
-            return None
-        return Status(status["start"], status["end"], status["type"])
+        if not status:
+            return {}
+        for key in status:
+            status[key] = Status(status[key]["start"], status[key]["end"], status[key]["type"])
+        return status
     
     def setStatus(self, status):
-        if status is None:
-            doc = {}
-        else:
-            doc = {'start': status.start, 'end': status.end, 'type': status.type}
-        self._setValue("status", doc)
+        for key in status:
+            status[key] = {"start": status[key].start, "end": status[key].end, "type": status[key].type}
+        self._setValue("status", status)
             
     def getHash(self):
         return self._getValue("hash")

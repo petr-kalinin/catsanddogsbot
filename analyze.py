@@ -11,6 +11,7 @@ import hashlib
 import sys
 import subprocess
 import os.path
+import random
 
 IS_MAIN = __name__ == '__main__'
 
@@ -160,21 +161,27 @@ def convert(im):
 
 
 def analyze_new(fname, center=NNOV):
+    result = {}
     try:
         os.system("./process.sh " + fname)
         if os.path.isfile("result.txt"):
             with open("result.txt") as f:
-                line = f.read()
-                typ, start, end = map(float, line.split())
-                typ = int(typ) - 2
-                if typ < 0:
-                    return None
-                if start > MAX_START:
-                    return None
-                return Status(start, end, typ)
-    except:
-        pass
-    return None
+                lines = f.readlines()
+                for line in lines:
+                    line = line.strip()
+                    name, typ, start, end = line.split()
+                    """
+                    typ = random.randint(0, 5)
+                    start = random.randint(0, 100)
+                    end = start + random.randint(0, 100)
+                    """
+                    start = float(start)
+                    end = float(end)
+                    typ = int(typ)
+                    result[name] = Status(start, end, typ)
+    except Exception as e:
+        print("Error: ", e)
+    return result
 
 
 #----- old way

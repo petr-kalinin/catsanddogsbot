@@ -11,6 +11,7 @@ from pprint import pprint
 from datetime import datetime
 import traceback
 import pdb
+import collections
 
 import db as db_module
 from analyze import analyze_new, download, Status, MAX_START, CouldNotLoadError
@@ -43,6 +44,28 @@ HELP = """
 6. Бот указывает длительность осадков, если она не очень большая. Если ожидается довольно длительный дождь, то бот не указывает его длительность.
 """
 
+POINTS = {
+    "nnov:center": "Нижний Новгород, центр",
+    "nnov:avtozavod": "Нижний Новгород, автозавод",
+    "nnov:sormovo": "Нижний Новгород, Сормово",
+    "msk:center": "Москва, центр",
+    "msk:north": "Москва, север",
+    "msk:south": "Москва, юг",
+    "msk:west": "Москва, запад",
+    "msk:east": "Москва, восток",
+    "spb:center": "Санкт-Петербург, центр",
+    "spb:north": "Санкт-Петербург, север",
+    "spb:south": "Санкт-Петербург, юг",
+    "spb:east": "Санкт-Петербург, восток",
+    "sis:": "Берендеевы поляны"
+}
+
+TYPE_CLOUD = 2
+TYPE_RAIN = 3
+TYPE_STORM = 4
+TYPE_HAIL = 5
+
+
 db = db_module.Db()
 
 
@@ -51,19 +74,19 @@ def now_min():
 
 
 def format_status(status):
-    if not status:
-        return "В ближайшее время сильных осадков не ожидается"
+    if status.type <= TYPE_CLOUD:
+        return "в ближайшее время сильных осадков не ожидается"
     now = now_min()
     text = ''
     if status.start < now + 5:
-        text = 'В ближайшее время ожидается '
+        text = 'в ближайшее время ожидается '
     else:
-        text = 'Через %d минут ожидается ' % round(status.start - now, -1)
-    if status.type == 1:
+        text = 'через %d минут ожидается ' % round(status.start - now, -1)
+    if status.type == TYPE_RAIN:
         text += 'сильный дождь'
-    elif status.type == 2:
+    elif status.type == TYPE_STORM:
         text += 'гроза'
-    elif status.type == 3:
+    elif status.type == TYPE_HAIL:
         text += 'гроза с градом'
     else:
         text += '???'
@@ -95,11 +118,11 @@ def handle(msg):
     
 def substantial_change(a, b):
     now = now_min()
-    if not b and not a:
+    if b.type <= TYPE_CLOUD and a.type <= TYPE_CLOUD:
         return False
-    if not b:
+    if b.type <= TYPE_CLOUD:
         return True #a.end > now + MIN_TIME_FOR_SUBSTANTIAL_END
-    if not a:
+    if a.type <= TYPE_CLOUD:
         return True
     if a.type != b.type:
         return True
@@ -107,19 +130,49 @@ def substantial_change(a, b):
         or abs(a.end - b.end) > 2 * MIN_TIME_FOR_SUBSTANTIAL)
 
 
-def send_all(status):
-    user = "@catsanddogs_nnov"
-    status_text = format_status(status)
-    try:
-        print("Sending message ", status_text)
-        if bot:
-            bot.sendMessage(user, status_text)
-        else:
-            print("Working in dry-run mode")
-    except:
-        pass
+def send_all(messages):
+    for chat in messages:
+        user = "@catsanddogs_{}".format(chat)
+        message_to_send = []
+        for message in messages[chat]:
+            location, status = message
+            status_text = format_status(status)
+            message_to_send.append("{}: {}".format(location, status_text))
+        if not message_to_send:
+            print("{}: no message to send".format(chat))
+            continue
+        message_text = "\n".join(message_to_send)
+        try:
+            print("{}: Sending message {}".format(chat, message_text))
+            if bot:
+                bot.sendMessage(user, message_text)
+            else:
+                print("Working in dry-run mode")
+        except:
+            pass
 
     
+def process_new_status(new_status, old_status):
+    status_to_save = new_status
+    messages_to_send = collections.defaultdict(list)
+    for key in POINTS:
+        if not key in old_status:
+            print("{}: not found in old status".format(key))
+            continue
+        if not key in new_status:
+            print("{}: not found in new status!".format(key))
+            continue
+        if not substantial_change(old_status[key], new_status[key]):
+            print("{}: Change is not substantiual".format(key))
+            status_to_save[key] = old_status[key]
+            continue
+        chat, _ = key.split(":")
+        messages_to_send[chat].append((POINTS[key], new_status[key]))
+        
+    send_all(messages_to_send)
+    return status_to_save
+    
+
 def update_forecast():
     last_hash = db.getHash()
     new_file, new_hash = download(SOURCE_URL, last_hash)
@@ -130,22 +183,17 @@ def update_forecast():
     
     new_status = analyze_new(new_file)
     print("New status: ", new_status)
-
     now = now_min()
-    if new_status:
-        new_status = Status(new_status.start + now, new_status.end + now, new_status.type)
+    for key in new_status:
+        new_status[key] = Status(new_status[key].start + now, new_status[key].end + now, new_status[key].type)
     
     old_status = db.getStatus()
-    if not old_status:
-        # set new status in case we have no old status at all
-        db.setStatus(old_status)
-    if not substantial_change(old_status, new_status):
-        print("Change is not substantiual")
-        db.setHash(new_hash)
-        return
-    db.setStatus(new_status)
+    print("Old status: ", old_status)
+    
+    status_to_save = process_new_status(new_status, old_status)
+
+    db.setStatus(status_to_save)
     db.setHash(new_hash)
-    send_all(new_status)
     
             
 if TOKEN != "_":
