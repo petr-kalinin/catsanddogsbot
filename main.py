@@ -139,11 +139,11 @@ def send_all(messages):
             status_text = format_status(status)
             message_to_send.append("{}: {}".format(location, status_text))
         if not message_to_send:
-            print("{}: no message to send".format(chat))
+            print("{}: no message to send".format(user))
             continue
         message_text = "\n".join(message_to_send)
         try:
-            print("{}: Sending message {}".format(chat, message_text))
+            print("{}: Sending message {}".format(user, message_text))
             if bot:
                 bot.sendMessage(user, message_text)
             else:
