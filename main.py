@@ -185,7 +185,10 @@ def update_forecast():
     print("New status: ", new_status)
     now = now_min()
     for key in new_status:
-        new_status[key] = Status(new_status[key].start + now, new_status[key].end + now, new_status[key].type)
+        if new_status[key].start > MAX_START:
+            new_status = Status(0, 1e20, 1e20)
+        else:
+            new_status[key] = Status(new_status[key].start + now, new_status[key].end + now, new_status[key].type)
     
     old_status = db.getStatus()
     print("Old status: ", old_status)
