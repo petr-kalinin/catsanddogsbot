@@ -102,7 +102,15 @@ def format_status(status):
 
 def status():
     status = db.getStatus()
-    return format_status(status)
+    message = ""
+    for key in POINTS:
+        if not key in status:
+            print("{}: not found in new status!".format(key))
+            continue
+        this_status = format_status(status)
+        message += "{}: {}\n".format(POINTS[key], this_status)
+
+    return message
 
 
 def handle(msg):
