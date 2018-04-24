@@ -89,7 +89,7 @@ def format_status(status):
     elif status.type == TYPE_HAIL:
         text += 'гроза с градом'
     else:
-        text += '???'
+        text += '???' + str(status.type)
     end_time = status.end - now
     if end_time < MAX_START:
         length = status.end - status.start
@@ -194,7 +194,7 @@ def update_forecast():
     now = now_min()
     for key in new_status:
         if new_status[key].start > MAX_START:
-            new_status = Status(0, 1e20, 1e20)
+            new_status[key] = Status(1e20, 1e20, 0)
         else:
             new_status[key] = Status(new_status[key].start + now, new_status[key].end + now, new_status[key].type)
     
