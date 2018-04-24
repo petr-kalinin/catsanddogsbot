@@ -46,7 +46,7 @@ HELP = """
 
 POINTS = {
     "nnov:center": "Нижний Новгород, центр",
-    "nnov:avtozavod": "Нижний Новгород, автозавод",
+    "nnov:avtozavod": "Нижний Новгород, Автозавод",
     "nnov:sormovo": "Нижний Новгород, Сормово",
     "msk:center": "Москва, центр",
     "msk:north": "Москва, север",
@@ -102,15 +102,15 @@ def format_status(status):
 
 def status():
     status = db.getStatus()
-    message = ""
+    message = []
     for key in POINTS:
         if not key in status:
             print("{}: not found in new status!".format(key))
             continue
-        this_status = format_status(status)
-        message += "{}: {}\n".format(POINTS[key], this_status)
-
-    return message
+        this_status = format_status(status[key])
+        message.append("{}: {}".format(POINTS[key], this_status))
+    message.sort()
+    return "\n".join(message)
 
 
 def handle(msg):
