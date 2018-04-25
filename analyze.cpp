@@ -480,6 +480,7 @@ int main(int argc, char* argv[]) {
                 for (int d = -delta; d <= delta; d++) {
                     int t = x + shift + d;
                     if (t < 0 || t >= slice.cols) continue;
+                    if (slice(0, t) == TYPE_UNKNOWN) continue;
                     result(0, x) += slice(0, t) * w;
                     resultN(0, x) += w;
                 }
@@ -490,7 +491,7 @@ int main(int argc, char* argv[]) {
         for (int x = 0; x < result.cols; x++) {
             if (resultN(0, x) > 1) {
                 result(0, x) /= resultN(0, x);
-                finalResult(0, x) = std::lround(result(0, x) + 0.2);  // make 1.3 round to 2
+                finalResult(0, x) = std::lround(result(0, x) - 0.1);
             } else {
                 finalResult(0, x) = TYPE_NONE;
         }

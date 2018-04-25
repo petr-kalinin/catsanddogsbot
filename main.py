@@ -189,9 +189,9 @@ def update_forecast():
         return
     print("Detected new file!")
     
+    now = now_min() - 2
     new_status = analyze_new(new_file)
     print("New status: ", new_status)
-    now = now_min()
     for key in new_status:
         if new_status[key].start > MAX_START:
             new_status[key] = Status(1e20, 1e20, 0)
