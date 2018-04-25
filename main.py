@@ -74,7 +74,7 @@ def now_min():
 
 
 def format_status(status):
-    if status.type <= TYPE_CLOUD:
+    if int(status.type) <= TYPE_CLOUD:
         return "в ближайшее время сильных осадков не ожидается"
     now = now_min()
     text = ''
@@ -82,11 +82,12 @@ def format_status(status):
         text = 'в ближайшее время ожидается '
     else:
         text = 'через %d минут ожидается ' % round(status.start - now, -1)
-    if status.type == TYPE_RAIN:
+    
+    if int(status.type) == TYPE_RAIN:
         text += 'сильный дождь'
-    elif status.type == TYPE_STORM:
+    elif int(status.type) == TYPE_STORM:
         text += 'гроза'
-    elif status.type == TYPE_HAIL:
+    elif int(status.type) == TYPE_HAIL:
         text += 'гроза с градом'
     else:
         text += '???' + str(status.type)
@@ -125,14 +126,15 @@ def handle(msg):
     
     
 def substantial_change(a, b):
-    now = now_min()
-    if b.type <= TYPE_CLOUD and a.type <= TYPE_CLOUD:
+    if abs(a.type - b.type) < 0.3:
         return False
-    if b.type <= TYPE_CLOUD:
-        return True #a.end > now + MIN_TIME_FOR_SUBSTANTIAL_END
-    if a.type <= TYPE_CLOUD:
+    if int(b.type) <= TYPE_CLOUD and int(a.type) <= TYPE_CLOUD:
+        return False
+    if int(b.type) <= TYPE_CLOUD:
         return True
-    if a.type != b.type:
+    if int(a.type) <= TYPE_CLOUD:
+        return True
+    if int(a.type) != int(b.type):
         return True
     return (abs(a.start - b.start) > MIN_TIME_FOR_SUBSTANTIAL
         or abs(a.end - b.end) > 2 * MIN_TIME_FOR_SUBSTANTIAL)

@@ -487,25 +487,25 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        Data finalResult = Data::zeros(result.rows, result.cols);
+        RichData finalResult = RichData::zeros(result.rows, result.cols);
         for (int x = 0; x < result.cols; x++) {
             if (resultN(0, x) > 1) {
                 result(0, x) /= resultN(0, x);
-                finalResult(0, x) = std::lround(result(0, x) - 0.1);
+                finalResult(0, x) = result(0, x) + 0.4;
             } else {
                 finalResult(0, x) = TYPE_NONE;
-        }
-            std::cout << (int)finalResult(0, x) << " ";
+            }
+            std::cout << finalResult(0, x) << " ";
         }
         std::cout << std::endl;
         
         double start = 1e20;
         double end = 1e20;
-        int type = TYPE_NONE;
+        double type = TYPE_NONE;
         for (int x = 0; x < result.cols; x++) {
             double time = x / v;
             if (time - end > MERGE_THRESHOLD) break;
-            if (finalResult(0, x) > TYPE_CLOUD) {
+            if (finalResult(0, x) > TYPE_RAIN) {
                 if (finalResult(0, x) > type) 
                     type = finalResult(0, x);
                 if (time < start) { 
@@ -514,7 +514,6 @@ int main(int argc, char* argv[]) {
                 }
                 if (time > end) 
                     end = time;
-                    
             }
         }
         

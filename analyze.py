@@ -177,7 +177,7 @@ def analyze_new(fname, center=NNOV):
                     """
                     start = float(start)
                     end = float(end)
-                    typ = int(typ)
+                    typ = float(typ)
                     result[name] = Status(start, end, typ)
     except Exception as e:
         print("Error: ", e)
