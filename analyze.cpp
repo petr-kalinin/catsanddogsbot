@@ -346,6 +346,7 @@ RichData makeRichData(const Data& data) {
 Data makeSlice(Data& data, int x0, int y0, cv::Vec2f dir) 
 {
     const double ANGLE_RANGE = 0.05;
+    const double MAX_ADD_SHIFT = 3;
     float angle = std::atan2(dir[1], dir[0]);
     
     Data result = Data::zeros(1, 100);
@@ -353,18 +354,20 @@ Data makeSlice(Data& data, int x0, int y0, cv::Vec2f dir)
     for (int d = 0; d < 100; d++) {
         for (double da = -ANGLE_RANGE; da < ANGLE_RANGE + 1e-5; da += 0.01) {
             double aa = angle + da;
-            int xx = x0 - d * cos(aa);
-            int yy = y0 - d * sin(aa);
+            double add_shift = da / ANGLE_RANGE * MAX_ADD_SHIFT;
+            int xx = x0 - d * cos(aa) + add_shift * sin(angle);
+            int yy = y0 - d * sin(aa) - add_shift * cos(angle);
             if (data(yy, xx) > result(0, d))
                 result(0, d) = data(yy, xx);
         }
     }
 
     for (int d = 0; d < 100; d++) {
-        for (double da = -ANGLE_RANGE; da < ANGLE_RANGE + 1e-5; da += 0.01) {
+        for (double da = -ANGLE_RANGE; da < ANGLE_RANGE + 1e-5; da += 2*ANGLE_RANGE) {
             double aa = angle + da;
-            int xx = x0 - d * cos(aa);
-            int yy = y0 - d * sin(aa);
+            double add_shift = da / ANGLE_RANGE * MAX_ADD_SHIFT;
+            int xx = x0 - d * cos(aa) + add_shift * sin(angle);
+            int yy = y0 - d * sin(aa) - add_shift * cos(angle);
             data(yy, xx) = TYPE_UNKNOWN;
         }
     }
@@ -383,7 +386,7 @@ boost::optional<float> calcVelocity(const Data& slice1, const Data& slice2) {
     
     //std::cout << min << " " << max << " " << minX << std::endl;
 
-    if (min > cropped.cols / 2 || max <= 1.9 * min + 10)
+    if (min > cropped.cols * 3 / 4 || max <= 1.9 * min + 10)
         return boost::none;
     return SHIFT - minX.x;
 }
@@ -432,6 +435,14 @@ int main(int argc, char* argv[]) {
        
         colorize(thisDatas, name + "_data%02d");
 
+        std::cout << "Slices: " << std::endl;
+        for (int f = 0; f < slices.size(); f++) {
+            const auto& slice = slices[f];
+            std::cout << f << ": ";
+            for (int x = 0; x < slice.cols; x++) std::cout << (int)slice(0, x) << " ";
+            std::cout << std::endl;
+        }
+        
         double v = 0;
         int nv = 0;
         std::set<int> goodFrames;
@@ -456,9 +467,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
         
-        v = v / nv;
-
-        std::cout << "Slices: " << std::endl;
+        std::cout << "Good slices: " << std::endl;
         for (const auto& f: goodFrames) {
             const auto& slice = slices[f];
             std::cout << f << ": ";
@@ -466,6 +475,8 @@ int main(int argc, char* argv[]) {
             std::cout << std::endl;
         }
         
+        v = v / nv;
+
         std::cout << "Detected v= " << v << std::endl;
         
         RichData result = RichData::zeros(slices[0].rows, slices[0].cols);
