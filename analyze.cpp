@@ -231,7 +231,7 @@ std::vector<Data> convertToDatas(const std::vector<Image>& frames) {
         }
     }
     
-    auto dd = makeDd(2);
+    auto dd = makeDd(4);
     
     std::vector<Data> sourceDataFrames;
     for (const auto& frame: frames) {
