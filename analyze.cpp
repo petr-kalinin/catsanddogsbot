@@ -384,9 +384,20 @@ boost::optional<float> calcVelocity(const Data& slice1, const Data& slice2) {
     cv::Point minX;
     cv::minMaxLoc(result, &min, &max, &minX);
     
-    //std::cout << min << " " << max << " " << minX << std::endl;
+    /*
+    std::cout << "cropped ";
+    for (int x = 0; x < cropped.cols; x++) std::cout << (int)cropped.at<uchar>(0, x) << " ";
+    std::cout << std::endl << "slice2 ";
+    for (int x = 0; x < slice2.cols; x++) std::cout << (int)slice2.at<uchar>(0, x) << " ";
+    std::cout << std::endl << "result ";
+    for (int x = 0; x < result.cols; x++) std::cout << result.at<float>(0, x) << " ";
+    std::cout << std::endl;
 
-    if (min > cropped.cols * 3 / 4 || max <= 1.9 * min + 10)
+    
+    std::cout << min << " " << max << " " << minX << std::endl;
+    */
+
+    if (min > cropped.cols * 3 / 4 || max <= 1.9 * min + 10 || minX.x < SHIFT / 3)
         return boost::none;
     return SHIFT - minX.x;
 }
@@ -452,7 +463,7 @@ int main(int argc, char* argv[]) {
                 if (thisV) {
                     v += *thisV / (j - i);
                     nv++;
-                    //std::cout << "v for " << i << " " << j << " " << *thisV << std::endl;
+                    //std::cout << "v for " << i << " " << j << " " << *thisV << " = " << *thisV / (j - i) << std::endl;
                     goodFrames.insert(i);
                     goodFrames.insert(j);
                 } else {
